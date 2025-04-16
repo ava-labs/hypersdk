@@ -166,6 +166,44 @@ linters:
         # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#useless-break
         - name: useless-break
           disabled: false
+        # https://github.com/mgechev/revive/blob/HEAD/RULES_DESCRIPTIONS.md#exported
+        - name: exported
+          disabled: false
+          arguments:
+            - "checkPublicInterface"
+            - "sayRepetitiveInsteadOfStutters"
+          exclude:
+            - "**/abi/**/*.go"
+            - "**/api/**/*.go"
+            - "**/auth/**/*.go"
+            - "**/chain/**/*.go"
+            - "**/chainindex/**/*.go"
+            - "**/cli/**/*.go"
+            - "**/cmd/**/*.go"
+            - "**/codec/**/*.go"
+            - "**/consts/**/*.go"
+            - "**/crypto/**/*.go"
+            - "**/event/**/*.go"
+            - "**/examples/**/*.go"
+            - "**/extension/**/*.go"
+            - "**/fees/**/*.go"
+            - "**/genesis/**/*.go"
+            - "**/internal/**/*.go"
+            - "**/keys/**/*.go"
+            - "**/load/**/*.go"
+            - "**/proto/**/*.go"
+            - "**/pubsub/**/*.go"
+            - "**/requester/**/*.go"
+            - "**/snow/**/*.go"
+            - "**/state/**/*.go"
+            - "**/statesync/**/*.go"
+            - "**/storage/**/*.go"
+            - "**/tests/**/*.go"
+            - "**/throughput/**/*.go"
+            - "**/utils/**/*.go"
+            - "**/vm/**/*.go"
+            - "**/x/**/*.go"
+            - "TEST"
     spancheck:
       checks:
         - end
@@ -193,10 +231,13 @@ linters:
   exclusions:
     generated: lax
     presets:
-      - comments
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      - path-except: ^context/
+        text: "(ST1000|ST1020|ST1021|ST1022)"   
+
 issues:
   # Maximum issues count per one linter.
   # Set to 0 to disable.
