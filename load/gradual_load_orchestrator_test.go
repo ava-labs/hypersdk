@@ -201,6 +201,12 @@ func newMockTracker(tps uint64, sustainedTime time.Duration) *mockTracker {
 	}
 }
 
+// GetObservedConfirmed returns the number of confirmed transactions observed
+//
+// The gradual load orchestrator calls GetObservedConfirmed every sustainedTime
+// seconds to compute the TPS. The mockTracker simulates this by returning a
+// counter (observedConfirmed) and incrementing that counter by the number of
+// txs it is expected to observe in the next sustainedTime seconds.
 func (m *mockTracker) GetObservedConfirmed() uint64 {
 	oc := m.observedConfirmed
 	m.observedConfirmed += (m.tps * uint64(m.sustainedTime.Seconds()))
