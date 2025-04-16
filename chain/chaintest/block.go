@@ -132,8 +132,7 @@ func GenerateExecutionBlocks[T any](
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
 	factories []chain.AuthFactory,
-	actionGenerator ActionConstructor[T],
-	txDistributor StateAccessDistributor[T],
+	stateAccessDistributor StateAccessDistributor[T],
 	keys []T,
 	parentCtx *parentContext,
 	numBlocks uint64,
@@ -146,7 +145,6 @@ func GenerateExecutionBlocks[T any](
 		timestampOffset = rules.GetMinBlockGap()
 	}
 	executionBlocks := make([]*chain.ExecutionBlock, numBlocks)
-	nonce := uint64(0)
 	for i := range executionBlocks {
 		timestamp := parentCtx.timestamp + timestampOffset*(int64(i)+1)
 		height := parentCtx.height + 1 + uint64(i)
@@ -159,20 +157,16 @@ func GenerateExecutionBlocks[T any](
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txs, err := txDistributor(
-			int(numTxsPerBlock),
+		txs, err := stateAccessDistributor.Generate(
+			numTxsPerBlock,
 			factories,
 			keys,
-			actionGenerator,
-			ruleFactory,
 			unitPrices,
 			timestamp,
-			nonce,
 		)
 		if err != nil {
 			return nil, err
 		}
-		nonce += uint64(len(txs))
 
 		ts := tstate.New(0)
 		for _, tx := range txs {
@@ -252,7 +246,6 @@ type BlockBenchmark[T any] struct {
 	AuthVerificationCores int
 
 	GenesisF               GenesisGenerator[T]
-	ActionConstructor      ActionConstructor[T]
 	StateAccessDistributor StateAccessDistributor[T]
 
 	// NumBlocks is set as a hyperparameter to avoid using b.N to generate
@@ -336,7 +329,6 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 		test.MetadataManager,
 		test.BalanceHandler,
 		factories,
-		test.ActionConstructor,
 		test.StateAccessDistributor,
 		keys,
 		parentCtx,
@@ -387,60 +379,73 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 // access set is derived from the generated auth factories
 type GenesisGenerator[T any] func(numTxsPerBlock uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
 
-// ActionConstructor takes in a key from the state access set and
-// returns an action. The action returned should be unique relative to the state
-// access key.
-type ActionConstructor[T any] func(k T, nonce uint64) chain.Action
+// ActionConstructor converts a state access key into an action.
+type ActionConstructor[T any] interface {
+	// Generate takes in a key from the state access set and returns an action.
+	// The action returned should be unique relative to the state access key.
+	Generate(k T, nonce uint64) chain.Action
+}
 
 // StateAccessDistributor generates a list of transactions whose state accesses
 // vary depending on the implementation.
-//
-// For each transaction, StateAccessDistributor selects a key from the state
-// access set (keys) and constructs an action. This action is then used to
-// create a transaction.
-//
-// Implementations of StateAccessDistribution will vary in the way they select
-// state access keys (e.g. using unique keys, using the same key, etc.).
-type StateAccessDistributor[T any] func(
-	numTxs int,
-	factories []chain.AuthFactory,
-	keys []T,
-	actionConstructor ActionConstructor[T],
-	ruleFactory chain.RuleFactory,
-	unitPrices fees.Dimensions,
-	timestamp int64,
-	nonce uint64,
-) ([]*chain.Transaction, error)
+type StateAccessDistributor[T any] interface {
+	// Generate returns a list of transactions
+	//
+	// For each transaction, Generate should select a key from the state access set
+	// (keys) and construct an action. This action is then used to create a
+	// transaction.
+	//
+	// Implementations of Generate will vary in the way they select state access
+	// keys (e.g. using unique keys, using the same key, etc.).
+	Generate(
+		numTxs uint64,
+		factories []chain.AuthFactory,
+		keys []T,
+		unitPrices fees.Dimensions,
+		timestamp int64,
+	) ([]*chain.Transaction, error)
+}
 
-func NoopDistribution[T any](int, []chain.AuthFactory, []T, ActionConstructor[T], chain.RuleFactory, fees.Dimensions, int64, uint64) ([]*chain.Transaction, error) {
-	return []*chain.Transaction{}, nil
+type NoopDistributor[T any] struct{}
+
+func (NoopDistributor[T]) Generate(uint64, []chain.AuthFactory, []T, fees.Dimensions, int64) ([]*chain.Transaction, error) {
+	return nil, nil
 }
 
 // ParallelDistribution generates a list of transactions that are each assigned
 // a unique state access key. When using pessimistic concurrency control, this
 // allows for the transactions to be executed in parallel.
-func ParallelDistribution[T any](
-	numTxs int,
+type ParallelDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewParallelDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *ParallelDistributor[T] {
+	return &ParallelDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (p *ParallelDistributor[T]) Generate(
+	numTxs uint64,
 	factories []chain.AuthFactory,
 	keys []T,
-	ac ActionConstructor[T],
-	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
-	nonce uint64,
 ) ([]*chain.Transaction, error) {
-	if numTxs != len(keys) || numTxs != len(factories) {
+	if int(numTxs) != len(keys) || int(numTxs) != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
 
 	txs := make([]*chain.Transaction, numTxs)
 	for i := range numTxs {
-		action := ac(keys[i], nonce)
-
-		nonce++
+		action := p.actionConstructor.Generate(keys[i], p.nonce)
+		p.nonce++
 
 		tx, err := chain.GenerateTransaction(
-			ruleFactory,
+			p.ruleFactory,
 			unitPrices,
 			timestamp,
 			[]chain.Action{action},
@@ -458,15 +463,25 @@ func ParallelDistribution[T any](
 
 // SerialDistribution generates a list of transactions that are each assigned
 // the same state access key. As a result, the transactions must be executed serially.
-func SerialDistribution[T any](
-	numTxs int,
+type SerialDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewSerialDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *SerialDistributor[T] {
+	return &SerialDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (s *SerialDistributor[T]) Generate(
+	numTxs uint64,
 	factories []chain.AuthFactory,
 	keys []T,
-	ac ActionConstructor[T],
-	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
-	nonce uint64,
 ) ([]*chain.Transaction, error) {
 	if len(keys) != 1 {
 		return nil, ErrSingleKeyLengthOnly
@@ -474,12 +489,11 @@ func SerialDistribution[T any](
 
 	txs := make([]*chain.Transaction, numTxs)
 	for i := range numTxs {
-		action := ac(keys[0], nonce)
-
-		nonce++
+		action := s.actionConstructor.Generate(keys[0], s.nonce)
+		s.nonce++
 
 		tx, err := chain.GenerateTransaction(
-			ruleFactory,
+			s.ruleFactory,
 			unitPrices,
 			timestamp,
 			[]chain.Action{action},
@@ -497,33 +511,42 @@ func SerialDistribution[T any](
 
 // ZipfDistribution generates a list of transactions whose state access key is
 // sampled from a zipf distribution.
-func ZipfDistribution[T any](
-	numTxs int,
+type ZipfDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewZipfDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *ZipfDistributor[T] {
+	return &ZipfDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (z *ZipfDistributor[T]) Generate(
+	numTxs uint64,
 	factories []chain.AuthFactory,
 	keys []T,
-	ac ActionConstructor[T],
-	ruleFactory chain.RuleFactory,
 	unitPrices fees.Dimensions,
 	timestamp int64,
-	nonce uint64,
 ) ([]*chain.Transaction, error) {
-	if numTxs != len(keys) || numTxs != len(factories) {
+	if int(numTxs) != len(keys) || int(numTxs) != len(factories) {
 		return nil, ErrMismatchedKeysAndFactoriesLen
 	}
 
 	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
 	sZipf := 1.01
 	vZipf := 2.7
-	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, uint64(numTxs-1))
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxs-1)
 
 	txs := make([]*chain.Transaction, numTxs)
 	for i := range numTxs {
-		action := ac(keys[zipfGen.Uint64()], nonce)
-
-		nonce++
+		action := z.actionConstructor.Generate(keys[zipfGen.Uint64()], z.nonce)
+		z.nonce++
 
 		tx, err := chain.GenerateTransaction(
-			ruleFactory,
+			z.ruleFactory,
 			unitPrices,
 			timestamp,
 			[]chain.Action{action},

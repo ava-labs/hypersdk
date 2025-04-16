@@ -518,6 +518,7 @@ func TestProcessorExecute(t *testing.T) {
 }
 
 func BenchmarkExecuteBlocks(b *testing.B) {
+	ruleFactory := chaintest.RuleFactory()
 	benchmarks := []struct {
 		name                   string
 		genesisGenerator       chaintest.GenesisGenerator[string]
@@ -527,24 +528,24 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 		{
 			name:                   "empty",
 			genesisGenerator:       noopGenesisF,
-			stateAccessDistributor: chaintest.NoopDistribution[string],
+			stateAccessDistributor: chaintest.NoopDistributor[string]{},
 		},
 		{
 			name:                   "parallel",
 			genesisGenerator:       uniqueKeyGenesisGenerator,
-			stateAccessDistributor: chaintest.ParallelDistribution[string],
+			stateAccessDistributor: chaintest.NewParallelDistributor(actionConstructor{}, ruleFactory),
 			numTxsPerBlock:         16,
 		},
 		{
 			name:                   "serial",
 			genesisGenerator:       singleKeyGenesisGenerator,
-			stateAccessDistributor: chaintest.SerialDistribution[string],
+			stateAccessDistributor: chaintest.NewSerialDistributor(actionConstructor{}, ruleFactory),
 			numTxsPerBlock:         16,
 		},
 		{
 			name:                   "zipf",
 			genesisGenerator:       uniqueKeyGenesisGenerator,
-			stateAccessDistributor: chaintest.ZipfDistribution[string],
+			stateAccessDistributor: chaintest.NewZipfDistributor(actionConstructor{}, ruleFactory),
 			numTxsPerBlock:         16,
 		},
 	}
@@ -557,7 +558,6 @@ func BenchmarkExecuteBlocks(b *testing.B) {
 				AuthEngines:            auth.DefaultEngines(),
 				RuleFactory:            chaintest.RuleFactory(),
 				GenesisF:               bm.genesisGenerator,
-				ActionConstructor:      actionConstructor,
 				StateAccessDistributor: bm.stateAccessDistributor,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
@@ -601,7 +601,9 @@ func singleKeyGenesisGenerator(numTxsPerBlock uint64) ([]chain.AuthFactory, []st
 	return factories, keys, genesis, nil
 }
 
-func actionConstructor(k string, nonce uint64) chain.Action {
+type actionConstructor struct{}
+
+func (actionConstructor) Generate(k string, nonce uint64) chain.Action {
 	return &chaintest.TestAction{
 		Nonce:                        nonce,
 		SpecifiedStateKeys:           []string{k},

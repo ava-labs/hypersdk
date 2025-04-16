@@ -22,6 +22,7 @@ import (
 )
 
 func BenchmarkMorpheusBlocks(b *testing.B) {
+	ruleFactory := chaintest.RuleFactory()
 	benchmarks := []struct {
 		name                   string
 		genesisGenerator       chaintest.GenesisGenerator[codec.Address]
@@ -30,17 +31,17 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 		{
 			name:                   "parallel transfers",
 			genesisGenerator:       uniqueAddressGenesisF,
-			stateAccessDistributor: chaintest.ParallelDistribution[codec.Address],
+			stateAccessDistributor: chaintest.NewParallelDistributor(actionConstructor{}, ruleFactory),
 		},
 		{
 			name:                   "serial transfers",
 			genesisGenerator:       singleAddressGenesisF,
-			stateAccessDistributor: chaintest.SerialDistribution[codec.Address],
+			stateAccessDistributor: chaintest.NewSerialDistributor(actionConstructor{}, ruleFactory),
 		},
 		{
 			name:                   "zipf transfers",
 			genesisGenerator:       uniqueAddressGenesisF,
-			stateAccessDistributor: chaintest.ZipfDistribution[codec.Address],
+			stateAccessDistributor: chaintest.NewZipfDistributor(actionConstructor{}, ruleFactory),
 		},
 	}
 
@@ -49,10 +50,9 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 			benchmark := &chaintest.BlockBenchmark[codec.Address]{
 				MetadataManager:        metadata.NewDefaultManager(),
 				BalanceHandler:         &storage.BalanceHandler{},
-				RuleFactory:            chaintest.RuleFactory(),
+				RuleFactory:            ruleFactory,
 				AuthEngines:            auth.DefaultEngines(),
 				GenesisF:               bm.genesisGenerator,
-				ActionConstructor:      actionGenerator,
 				StateAccessDistributor: bm.stateAccessDistributor,
 				Config: chain.Config{
 					TargetBuildDuration:       100 * time.Millisecond,
@@ -70,7 +70,9 @@ func BenchmarkMorpheusBlocks(b *testing.B) {
 	}
 }
 
-func actionGenerator(k codec.Address, nonce uint64) chain.Action {
+type actionConstructor struct{}
+
+func (actionConstructor) Generate(k codec.Address, nonce uint64) chain.Action {
 	return &actions.Transfer{
 		To:    k,
 		Value: 1,
