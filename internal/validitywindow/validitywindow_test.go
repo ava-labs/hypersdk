@@ -441,6 +441,10 @@ func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (Exe
 }
 
 func (t *testChainIndex) SaveHistorical(blk ExecutionBlock[container]) error {
+	if t.blocks == nil {
+		t.blocks = make(map[ids.ID]ExecutionBlock[container])
+	}
+
 	if t.beforeSaveFunc != nil {
 		return t.beforeSaveFunc(t.blocks)
 	}
