@@ -235,8 +235,9 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      - path-except: ^context/
-        text: "(ST1000|ST1020|ST1021|ST1022)"   
+      - linters:
+          - staticcheck
+        text: "(ST1000|ST1020|ST1021|ST1022)"
 
 issues:
   # Maximum issues count per one linter.
