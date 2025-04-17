@@ -152,7 +152,7 @@ jobs:
             go.sum
             examples/morpheusvm/go.sum
       - name: Run e2e tests
-        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@50f1601bf39a106d066012b4ef470c1058f5005a
+        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@c8b3f57d2a2556d41ca6a0b2da11561b1d7bab75
         with:
           run: ./examples/morpheusvm/scripts/run.sh
           run_env: MODE='test'

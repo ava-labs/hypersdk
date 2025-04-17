@@ -28,8 +28,12 @@ const (
 
 // hardcoded initial set of ed25519 keys. Each will be initialized with InitialBalance
 var ed25519HexKeys = []string{
+	// integration test key
 	"323b1d8f4eed5f0da9da93071b034f2dce9d2d22692c172f3cb252a64ddfafd01b057de320297c29ad0c1f589ea216869cf1938d88c9fbd70d6748323dbf2fa7", //nolint:lll
+	// txGenerator keys
 	"8a7be2e0c9a2d09ac2861c34326d6fe5a461d920ba9c2b345ae28e603d517df148735063f8d5d8ba79ea4668358943e5c80bc09e9b2b9a15b5b15db6c1862e88", //nolint:lll
+	// load generation key
+	"5c94b89bd0cccc0b5cef5b79ae2a0d2949c8b5596ec9869ddd4eab4e982b2b6a44bc6edd1009fce73b608cc51ab694dff11b27f8647350c0d43eb138c261796d", //nolint:lll
 }
 
 func newGenesis(authFactories []chain.AuthFactory, minBlockGap time.Duration) *genesis.DefaultGenesis {
