@@ -65,10 +65,11 @@ type Interface[T emap.Item] interface {
 //  4. Maintains consensus safety across nodes i.e.;
 //     if different nodes had different rules for transaction uniqueness,
 //     they would disagree about the state of the blockchain.
+//
+// TimeValidityWindow builds up on assumption of ChainIndex being up to date
 type TimeValidityWindow[T emap.Item] struct {
-	log    logging.Logger
-	tracer trace.Tracer
-
+	log                     logging.Logger
+	tracer                  trace.Tracer
 	lock                    sync.Mutex
 	chainIndex              ChainIndex[T]
 	seen                    *emap.EMap[T]
@@ -76,12 +77,14 @@ type TimeValidityWindow[T emap.Item] struct {
 	getTimeValidityWindow   GetTimeValidityWindowFunc
 }
 
+// NewTimeValidityWindow constructs TimeValidityWindow and eagerly tries to populate
+// a validity window from the tip
 func NewTimeValidityWindow[T emap.Item](
 	ctx context.Context,
 	log logging.Logger,
 	tracer trace.Tracer,
 	chainIndex ChainIndex[T],
-	lastAcceptedBlock ExecutionBlock[T],
+	tip ExecutionBlock[T],
 	getTimeValidityWindowF GetTimeValidityWindowFunc,
 ) *TimeValidityWindow[T] {
 	t := &TimeValidityWindow[T]{
@@ -91,10 +94,17 @@ func NewTimeValidityWindow[T emap.Item](
 		seen:                  emap.NewEMap[T](),
 		getTimeValidityWindow: getTimeValidityWindowF,
 	}
-	if lastAcceptedBlock != nil {
-		t.Populate(ctx, lastAcceptedBlock)
+	if tip != nil {
+		t.populate(ctx, tip)
 	}
 	return t
+}
+
+// Complete will attempt to complete a validity window it will return boolean
+// as a signal if it's ready to reliably prevent replay attacks
+func (v *TimeValidityWindow[T]) Complete(ctx context.Context, block ExecutionBlock[T]) bool {
+	_, isComplete := v.populate(ctx, block)
+	return isComplete
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
@@ -131,7 +141,11 @@ func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 	_, span := v.tracer.Start(ctx, "Chain.VerifyExpiryReplayProtection")
 	defer span.End()
 
-	if blk.GetHeight() <= v.lastAcceptedBlockHeight {
+	v.lock.Lock()
+	lastAcceptedBlockHeight := v.lastAcceptedBlockHeight
+	v.lock.Unlock()
+
+	if blk.GetHeight() <= lastAcceptedBlockHeight {
 		return nil
 	}
 
@@ -214,17 +228,12 @@ func (v *TimeValidityWindow[T]) isRepeat(
 	}
 }
 
-// Populate fills the validity window with blocks from cache/on-disk and reports if a full window was observed.
-// Returns:
-//   - []ExecutionBlock[T]: accepted blocks in validity window
-//   - bool: True if a full validity window was observed
-func (v *TimeValidityWindow[T]) Populate(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
+func (v *TimeValidityWindow[T]) populate(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
 	var (
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
 		fullValidityWindow = false
-		ts                 = block.GetTimestamp()
-		oldestAllowed      = v.calculateOldestAllowed(ts)
+		oldestAllowed      = v.calculateOldestAllowed(block.GetTimestamp())
 		err                error
 	)
 

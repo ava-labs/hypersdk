@@ -347,7 +347,7 @@ func (vm *VM) Initialize(
 		if vm.SyncClient.Started() {
 			return nil
 		}
-		return vm.startNormalOp(ctx, lastAccepted)
+		return vm.startNormalOp(ctx)
 	})
 
 	for _, apiFactory := range vm.vmAPIHandlerFactories {
@@ -531,7 +531,7 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 
 // startNormalOp initializes components required for normal VM operation when transitioning
 // from bootstrapping or state sync
-func (vm *VM) startNormalOp(ctx context.Context, lastAcceptedBlock *chain.OutputBlock) error {
+func (vm *VM) startNormalOp(ctx context.Context) error {
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
 		vm.builder.Done()
@@ -555,9 +555,19 @@ func (vm *VM) startNormalOp(ctx context.Context, lastAcceptedBlock *chain.Output
 	}
 	vm.checkActivity(ctx)
 
-	_, fullyPopulated := vm.chainTimeValidityWindow.Populate(ctx, lastAcceptedBlock)
-	if !fullyPopulated {
-		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
+	lastAccepted, err := vm.LastAcceptedBlock(ctx)
+	if err != nil {
+		return err
+	}
+	executionBlk, err := vm.GetExecutionBlock(ctx, lastAccepted.GetID())
+	if err != nil {
+		return err
+	}
+
+	isValidityWindowComplete := vm.chainTimeValidityWindow.Complete(ctx, executionBlk)
+	if !isValidityWindowComplete {
+		// Fail loudly, a validity window is critical part to the vm
+		panic("critical error: validity window's partial state may lead to inconsistencies")
 	}
 
 	vm.normalOp.Store(true)

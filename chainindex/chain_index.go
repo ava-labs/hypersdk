@@ -100,39 +100,31 @@ func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error)
 
 func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	batch := c.db.NewBatch()
-
-	var (
-		blkID    = blk.GetID()
-		height   = blk.GetHeight()
-		blkBytes = blk.GetBytes()
-	)
-	heightBytes := binary.BigEndian.AppendUint64(nil, height)
-	err := errors.Join(
-		batch.Put(lastAcceptedKey, heightBytes),
-		batch.Put(prefixBlockIDHeightKey(blkID), heightBytes),
-		batch.Put(prefixBlockHeightIDKey(height), blkID[:]),
-		batch.Put(prefixBlockKey(height), blkBytes),
-	)
-	if err != nil {
+	if err := c.writeBlock(batch, blk); err != nil {
 		return err
 	}
 
+	// Update the last accepted key
+	heightBytes := binary.BigEndian.AppendUint64(nil, blk.GetHeight())
+	if err := batch.Put(lastAcceptedKey, heightBytes); err != nil {
+		return err
+	}
+
+	height := blk.GetHeight()
 	expiryHeight := height - c.config.AcceptedBlockWindow
 	if c.config.AcceptedBlockWindow == 0 || expiryHeight == 0 || expiryHeight >= height { // ensure we don't free genesis
 		return batch.Write()
 	}
 
-	if err := batch.Delete(prefixBlockKey(expiryHeight)); err != nil {
-		return err
-	}
 	deleteBlkID, err := c.GetBlockIDAtHeight(ctx, expiryHeight)
 	if err != nil {
 		return err
 	}
-	if err := batch.Delete(prefixBlockIDHeightKey(deleteBlkID)); err != nil {
-		return err
-	}
-	if err := batch.Delete(prefixBlockHeightIDKey(expiryHeight)); err != nil {
+	if err = errors.Join(
+		batch.Delete(prefixBlockKey(expiryHeight)),
+		batch.Delete(prefixBlockIDHeightKey(deleteBlkID)),
+		batch.Delete(prefixBlockHeightIDKey(expiryHeight)),
+	); err != nil {
 		return err
 	}
 	c.metrics.deletedBlocks.Inc()
@@ -146,6 +138,18 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 			}
 			c.log.Info("compacted disk blocks", zap.Uint64("end", expiryHeight), zap.Duration("t", time.Since(start)))
 		}()
+	}
+
+	return batch.Write()
+}
+
+// SaveHistorical writes block on-disk, without updating lastAcceptedKey,
+// It should be used only for historical blocks, it's relying on heuristic of eventually calling UpdateLastAccepted,
+// which will delete expired blocks
+func (c *ChainIndex[T]) SaveHistorical(blk T) error {
+	batch := c.db.NewBatch()
+	if err := c.writeBlock(batch, blk); err != nil {
+		return err
 	}
 
 	return batch.Write()
@@ -181,6 +185,20 @@ func (c *ChainIndex[T]) GetBlockByHeight(ctx context.Context, blkHeight uint64) 
 		return utils.Zero[T](), err
 	}
 	return c.parser.ParseBlock(ctx, blkBytes)
+}
+
+func (_ *ChainIndex[T]) writeBlock(batch database.Batch, blk T) error {
+	var (
+		blkID    = blk.GetID()
+		height   = blk.GetHeight()
+		blkBytes = blk.GetBytes()
+	)
+	heightBytes := binary.BigEndian.AppendUint64(nil, height)
+	return errors.Join(
+		batch.Put(prefixBlockIDHeightKey(blkID), heightBytes),
+		batch.Put(prefixBlockHeightIDKey(height), blkID[:]),
+		batch.Put(prefixBlockKey(height), blkBytes),
+	)
 }
 
 func prefixBlockKey(height uint64) []byte {

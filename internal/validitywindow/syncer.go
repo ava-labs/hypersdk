@@ -5,6 +5,7 @@ package validitywindow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,12 @@ import (
 type BlockFetcher[T Block] interface {
 	FetchBlocks(ctx context.Context, blk Block, minTimestamp *atomic.Int64) <-chan T
 }
+
+type BlockStore[T Block] interface {
+	SaveHistorical(blk T) error
+}
+
+var errSaveHistoricalBlocks = errors.New("failed to save historical blocks")
 
 // Syncer ensures the node does not transition to normal operation
 // until it has built a complete validity window of blocks.
@@ -39,7 +46,7 @@ type BlockFetcher[T Block] interface {
 //
 // The validity window can be marked as complete once either mechanism completes.
 type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
-	chainIndex         ChainIndex[T]
+	blockStore         BlockStore[B]
 	timeValidityWindow *TimeValidityWindow[T]
 	getValidityWindow  GetTimeValidityWindowFunc
 	blockFetcherClient BlockFetcher[B]
@@ -53,9 +60,9 @@ type Syncer[T emap.Item, B ExecutionBlock[T]] struct {
 	cancel   context.CancelFunc // For canceling backward sync
 }
 
-func NewSyncer[T emap.Item, B ExecutionBlock[T]](chainIndex ChainIndex[T], timeValidityWindow *TimeValidityWindow[T], blockFetcherClient BlockFetcher[B], getValidityWindow GetTimeValidityWindowFunc) *Syncer[T, B] {
+func NewSyncer[T emap.Item, B ExecutionBlock[T]](blockStore BlockStore[B], timeValidityWindow *TimeValidityWindow[T], blockFetcherClient BlockFetcher[B], getValidityWindow GetTimeValidityWindowFunc) *Syncer[T, B] {
 	return &Syncer[T, B]{
-		chainIndex:         chainIndex,
+		blockStore:         blockStore,
 		timeValidityWindow: timeValidityWindow,
 		blockFetcherClient: blockFetcherClient,
 		getValidityWindow:  getValidityWindow,
@@ -83,6 +90,15 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	go func() {
 		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp)
 		for blk := range resultChan {
+			err := s.blockStore.SaveHistorical(blk)
+			if err != nil {
+				s.errChan <- fmt.Errorf(
+					"%w; aborting to prevent inconsistencies %w",
+					errSaveHistoricalBlocks,
+					err,
+				)
+				return
+			}
 			s.timeValidityWindow.AcceptHistorical(blk)
 		}
 
@@ -97,7 +113,7 @@ func (s *Syncer[T, B]) Wait(ctx context.Context) error {
 	case <-s.doneChan:
 		return nil
 	case err := <-s.errChan:
-		return fmt.Errorf("timve valdity syncer exited with error: %w", err)
+		return fmt.Errorf("time validity syncer exited with error: %w", err)
 	case <-ctx.Done():
 		return fmt.Errorf("waiting for time validity syncer timed out: %w", ctx.Err())
 	}
@@ -141,7 +157,7 @@ func (s *Syncer[T, B]) backfillFromExisting(
 	ctx context.Context,
 	block ExecutionBlock[T],
 ) bool {
-	validityBlocks, windowComplete := s.timeValidityWindow.Populate(ctx, block)
+	validityBlocks, windowComplete := s.timeValidityWindow.populate(ctx, block)
 
 	s.oldestBlock = validityBlocks[0]
 	return windowComplete
