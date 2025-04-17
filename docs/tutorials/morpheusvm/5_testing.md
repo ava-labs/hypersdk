@@ -44,10 +44,9 @@ source ../../scripts/common/utils.sh
 source ../../scripts/constants.sh
 
 rm_previous_cov_reports
-prepare_ginkgo
 
 # run with 3 embedded VMs
-ACK_GINKGO_RC=true ginkgo \
+ACK_GINKGO_RC=true ../../bin/ginkgo \
 run \
 -v \
 --fail-fast \
