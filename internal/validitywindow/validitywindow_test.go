@@ -359,7 +359,7 @@ func TestVerifyTimestamp(t *testing.T) {
 }
 
 // TestValidityWindowBoundaryLifespan tests that a container included at the validity window boundary transitions
-// seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
+// seamlessly from failing verification due to a duplicate within the validity window to failing because it expired.
 func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
@@ -428,65 +428,9 @@ func TestAcceptHistorical(t *testing.T) {
 	r.Equal(uint64(1), validityWindow.lastAcceptedBlockHeight)
 }
 
-//func TestValidityWindowPopulated(t *testing.T) {
-//	tests := []struct {
-//		name            string
-//		blocks          []executionBlock
-//		lastAccepted    executionBlock
-//		validityWindow  int64
-//		expectPopulated bool
-//	}{
-//		{
-//			name:            "genesis block is sufficient",
-//			blocks:          []executionBlock{},
-//			lastAccepted:    newExecutionBlock(0, 0, []int64{}),
-//			validityWindow:  10,
-//			expectPopulated: true,
-//		},
-//		{
-//			name: "reaching genesis is considered as populated validity window",
-//			blocks: []executionBlock{
-//				newExecutionBlock(0, 0, []int64{}),
-//				newExecutionBlock(1, 5, []int64{1}),
-//			},
-//			lastAccepted:    newExecutionBlock(1, 5, []int64{1}),
-//			validityWindow:  10,
-//			expectPopulated: true,
-//		},
-//		{
-//			name: "blocks with timestamps spanning window is populated",
-//			blocks: []executionBlock{
-//				newExecutionBlock(0, 0, []int64{}),
-//				newExecutionBlock(1, 5, []int64{1}),
-//				newExecutionBlock(2, 15, []int64{2}),
-//			},
-//			lastAccepted:    newExecutionBlock(2, 15, []int64{2}),
-//			validityWindow:  10,
-//			expectPopulated: true,
-//		},
-//	}
-//
-//	for _, test := range tests {
-//		t.Run(test.name, func(t *testing.T) {
-//			r := require.New(t)
-//			ctx := context.Background()
-//
-//			chainIndex := &testChainIndex{}
-//			for _, blk := range test.blocks {
-//				chainIndex.set(blk.GetID(), blk)
-//			}
-//
-//			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, test.lastAccepted, func(int64) int64 {
-//				return test.validityWindow
-//			})
-//
-//			r.Equal(test.expectPopulated, validityWindow.Populated(), "validity window populated flag incorrect")
-//		})
-//	}
-//}
-
 type testChainIndex struct {
-	blocks map[ids.ID]ExecutionBlock[container]
+	beforeSaveFunc func(blocks map[ids.ID]ExecutionBlock[container]) error
+	blocks         map[ids.ID]ExecutionBlock[container]
 }
 
 func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
@@ -494,6 +438,14 @@ func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (Exe
 		return blk, nil
 	}
 	return nil, database.ErrNotFound
+}
+
+func (t *testChainIndex) SaveHistorical(blk ExecutionBlock[container]) error {
+	if t.beforeSaveFunc != nil {
+		return t.beforeSaveFunc(t.blocks)
+	}
+	t.blocks[blk.GetID()] = blk
+	return nil
 }
 
 func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[container]) {
