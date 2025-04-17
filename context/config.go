@@ -7,7 +7,7 @@ import "encoding/json"
 
 // Config represents a generic map-based configuration
 // Each value is stored as a raw JSON value, which can be used to unmarshal into
-// a specific type T
+// a specific config type T
 type Config map[string]json.RawMessage
 
 // NewEmptyConfig returns an empty config
@@ -49,7 +49,7 @@ func GetConfig[T any](c Config, key string, defaultConfig T) (T, error) {
 	return defaultConfig, nil
 }
 
-// SetConfig sets the value at key to value (which must be JSON serializable)
+// SetConfig sets the value at key to value (must be JSON serializable)
 func SetConfig[T any](c Config, key string, value T) error {
 	b, err := json.Marshal(value)
 	if err != nil {
