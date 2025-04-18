@@ -100,13 +100,9 @@ func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error)
 
 func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	batch := c.db.NewBatch()
-	if err := c.writeBlock(batch, blk); err != nil {
-		return err
-	}
 
-	// Update the last accepted key
 	heightBytes := binary.BigEndian.AppendUint64(nil, blk.GetHeight())
-	if err := batch.Put(lastAcceptedKey, heightBytes); err != nil {
+	if err := errors.Join(batch.Put(lastAcceptedKey, heightBytes), c.writeBlock(batch, blk)); err != nil {
 		return err
 	}
 
