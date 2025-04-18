@@ -54,7 +54,7 @@ type Interface[T emap.Item] interface {
 	IsRepeat(ctx context.Context, parentBlk ExecutionBlock[T], currentTimestamp int64, containers []T) (set.Bits, error)
 }
 
-// TimeValidityWindow is a time-based transaction uniqueness mechanism that prevents replay attacks.
+// TimeValidityWindow is a time-based transaction mechanism that prevents replay attacks.
 // It maintains a record of transactions that have been seen within a
 // configurable time window and rejects any duplicates.
 //
@@ -70,7 +70,7 @@ type Interface[T emap.Item] interface {
 type TimeValidityWindow[T emap.Item] struct {
 	log                     logging.Logger
 	tracer                  trace.Tracer
-	lock                    sync.Mutex
+	mu                      sync.Mutex
 	chainIndex              ChainIndex[T]
 	seen                    *emap.EMap[T]
 	lastAcceptedBlockHeight uint64
@@ -100,17 +100,17 @@ func NewTimeValidityWindow[T emap.Item](
 	return t
 }
 
-// Complete will attempt to complete a validity window it will return boolean
-// as a signal if it's ready to reliably prevent replay attacks
+// Complete will attempt to complete a validity window.
+// It returns a boolean that signals if it's ready to reliably prevent replay attacks
 func (v *TimeValidityWindow[T]) Complete(ctx context.Context, block ExecutionBlock[T]) bool {
 	_, isComplete := v.populate(ctx, block)
 	return isComplete
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
-	// Grab the lock before modifiying seen
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	// Grab the mu before modifiying seen
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	evicted := v.seen.SetMin(blk.GetTimestamp())
 	v.log.Debug("accepting block to validity window",
@@ -123,8 +123,8 @@ func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 }
 
 func (v *TimeValidityWindow[T]) AcceptHistorical(blk ExecutionBlock[T]) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	v.log.Debug("adding historical block to validity window",
 		zap.Stringer("blkID", blk.GetID()),
@@ -141,9 +141,9 @@ func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 	_, span := v.tracer.Start(ctx, "Chain.VerifyExpiryReplayProtection")
 	defer span.End()
 
-	v.lock.Lock()
+	v.mu.Lock()
 	lastAcceptedBlockHeight := v.lastAcceptedBlockHeight
-	v.lock.Unlock()
+	v.mu.Unlock()
 
 	if blk.GetHeight() <= lastAcceptedBlockHeight {
 		return nil
@@ -196,8 +196,8 @@ func (v *TimeValidityWindow[T]) isRepeat(
 ) (set.Bits, error) {
 	marker := set.NewBits()
 
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	var err error
 	for {
