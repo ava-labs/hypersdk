@@ -90,8 +90,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 	go func() {
 		resultChan := s.blockFetcherClient.FetchBlocks(syncCtx, s.oldestBlock, &s.minTimestamp)
 		for blk := range resultChan {
-			err := s.blockStore.SaveHistorical(blk)
-			if err != nil {
+			if err := s.blockStore.SaveHistorical(blk); err != nil {
 				s.errChan <- fmt.Errorf(
 					"%w; aborting to prevent inconsistencies %w",
 					errSaveHistoricalBlocks,
