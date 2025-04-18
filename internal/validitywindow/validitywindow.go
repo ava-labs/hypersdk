@@ -108,7 +108,7 @@ func (v *TimeValidityWindow[T]) Complete(ctx context.Context, block ExecutionBlo
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
-	// Grab the mu before modifiying seen
+	// Grab the lock before modifiying seen
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
