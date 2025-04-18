@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -53,36 +54,63 @@ type Interface[T emap.Item] interface {
 	IsRepeat(ctx context.Context, parentBlk ExecutionBlock[T], currentTimestamp int64, containers []T) (set.Bits, error)
 }
 
+// TimeValidityWindow is a time-based transaction mechanism that prevents replay attacks.
+// It maintains a record of transactions that have been seen within a
+// configurable time window and rejects any duplicates.
+//
+// This component is critical as it:
+//  1. Prevents transaction replay attacks
+//  2. Enforces double-spend protection
+//  3. Provides temporal validation boundaries
+//  4. Maintains consensus safety across nodes i.e.;
+//     if different nodes had different rules for transaction uniqueness,
+//     they would disagree about the state of the blockchain.
+//
+// TimeValidityWindow builds up on assumption of ChainIndex being up to date
 type TimeValidityWindow[T emap.Item] struct {
-	log    logging.Logger
-	tracer trace.Tracer
-
-	lock                    sync.Mutex
+	log                     logging.Logger
+	tracer                  trace.Tracer
+	mu                      sync.Mutex
 	chainIndex              ChainIndex[T]
 	seen                    *emap.EMap[T]
 	lastAcceptedBlockHeight uint64
 	getTimeValidityWindow   GetTimeValidityWindowFunc
 }
 
+// NewTimeValidityWindow constructs TimeValidityWindow and eagerly tries to populate
+// a validity window from the tip
 func NewTimeValidityWindow[T emap.Item](
+	ctx context.Context,
 	log logging.Logger,
 	tracer trace.Tracer,
 	chainIndex ChainIndex[T],
+	tip ExecutionBlock[T],
 	getTimeValidityWindowF GetTimeValidityWindowFunc,
 ) *TimeValidityWindow[T] {
-	return &TimeValidityWindow[T]{
+	t := &TimeValidityWindow[T]{
 		log:                   log,
 		tracer:                tracer,
 		chainIndex:            chainIndex,
 		seen:                  emap.NewEMap[T](),
 		getTimeValidityWindow: getTimeValidityWindowF,
 	}
+	if tip != nil {
+		t.populate(ctx, tip)
+	}
+	return t
+}
+
+// Complete will attempt to complete a validity window.
+// It returns a boolean that signals if it's ready to reliably prevent replay attacks
+func (v *TimeValidityWindow[T]) Complete(ctx context.Context, block ExecutionBlock[T]) bool {
+	_, isComplete := v.populate(ctx, block)
+	return isComplete
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 	// Grab the lock before modifiying seen
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	evicted := v.seen.SetMin(blk.GetTimestamp())
 	v.log.Debug("accepting block to validity window",
@@ -95,8 +123,8 @@ func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
 }
 
 func (v *TimeValidityWindow[T]) AcceptHistorical(blk ExecutionBlock[T]) {
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	v.log.Debug("adding historical block to validity window",
 		zap.Stringer("blkID", blk.GetID()),
@@ -113,7 +141,11 @@ func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 	_, span := v.tracer.Start(ctx, "Chain.VerifyExpiryReplayProtection")
 	defer span.End()
 
-	if blk.GetHeight() <= v.lastAcceptedBlockHeight {
+	v.mu.Lock()
+	lastAcceptedBlockHeight := v.lastAcceptedBlockHeight
+	v.mu.Unlock()
+
+	if blk.GetHeight() <= lastAcceptedBlockHeight {
 		return nil
 	}
 
@@ -164,8 +196,8 @@ func (v *TimeValidityWindow[T]) isRepeat(
 ) (set.Bits, error) {
 	marker := set.NewBits()
 
-	v.lock.Lock()
-	defer v.lock.Unlock()
+	v.mu.Lock()
+	defer v.mu.Unlock()
 
 	var err error
 	for {
@@ -196,24 +228,27 @@ func (v *TimeValidityWindow[T]) isRepeat(
 	}
 }
 
-func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
-	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
-}
-
-func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
+func (v *TimeValidityWindow[T]) populate(ctx context.Context, block ExecutionBlock[T]) ([]ExecutionBlock[T], bool) {
 	var (
 		parent             = block
 		parents            = []ExecutionBlock[T]{parent}
-		seenValidityWindow = false
-		validityWindow     = v.getTimeValidityWindow(block.GetTimestamp())
+		fullValidityWindow = false
+		oldestAllowed      = v.calculateOldestAllowed(block.GetTimestamp())
 		err                error
 	)
 
 	// Keep fetching parents until we:
+	// - Reach block height 0 (Genesis) at that point we have a full validity window,
+	// and we can correctly preform replay protection
 	// - Fill a validity window, or
 	// - Can't find more blocks
 	// Descending order is guaranteed by the parent-based traversal method
 	for {
+		if parent.GetHeight() == 0 {
+			fullValidityWindow = true
+			break
+		}
+
 		// Get execution block from cache or disk
 		parent, err = v.chainIndex.GetExecutionBlock(ctx, parent.GetParent())
 		if err != nil {
@@ -221,16 +256,23 @@ func (v *TimeValidityWindow[T]) PopulateValidityWindow(ctx context.Context, bloc
 		}
 		parents = append(parents, parent)
 
-		seenValidityWindow = block.GetTimestamp()-parent.GetTimestamp() > validityWindow
-		if seenValidityWindow {
+		fullValidityWindow = parent.GetTimestamp() < oldestAllowed
+		if fullValidityWindow {
 			break
 		}
 	}
 
-	for i := len(parents) - 1; i >= 0; i-- {
-		v.Accept(parents[i])
+	// Reverse blocks to process in chronological order
+	slices.Reverse(parents)
+	for _, blk := range parents {
+		v.Accept(blk)
 	}
-	return parents, seenValidityWindow
+
+	return parents, fullValidityWindow
+}
+
+func (v *TimeValidityWindow[T]) calculateOldestAllowed(timestamp int64) int64 {
+	return max(0, timestamp-v.getTimeValidityWindow(timestamp))
 }
 
 func VerifyTimestamp(containerTimestamp int64, executionTimestamp int64, divisor int64, validityWindow int64) error {

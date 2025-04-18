@@ -91,9 +91,17 @@ type VM[I Block, O Block, A Block] struct {
 	stateSyncableVM block.StateSyncableVM
 	closers         []namedCloser
 
-	onStateSyncStarted        []func(context.Context) error
-	onBootstrapStarted        []func(context.Context) error
+	// onNormalOperationsStarted contains callbacks that execute when the VM transitions
+	// to normal operation, either after bootstrapping or state sync completion.
 	onNormalOperationsStarted []func(context.Context) error
+
+	// onBootstrapStarted contains callbacks that execute when the VM begins
+	// bootstrapping state from the network.
+	onBootstrapStarted []func(context.Context) error
+
+	// onStateSyncStarted contains callbacks that execute when the VM begins
+	// state sync to synchronize with the network's state.
+	onStateSyncStarted []func(context.Context) error
 
 	verifiedSubs         []event.Subscription[O]
 	rejectedSubs         []event.Subscription[O]
@@ -513,10 +521,14 @@ func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
 	v.addCloser(name, closer)
 }
 
+// AddStateSyncStarter registers a callback that will be executed when the engine invokes SetState(snow.StateSyncing)
+// i.e., when it's in state sync operation
 func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
 	v.onStateSyncStarted = append(v.onStateSyncStarted, onStateSyncStarted...)
 }
 
+// AddNormalOpStarter registers a callback that will be executed when the engine invokes SetState(snow.NormalOp)
+// i.e., transitioning from state sync / bootstrapping to normal operation.
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
 	v.onNormalOperationsStarted = append(v.onNormalOperationsStarted, onNormalOpStartedF...)
 }

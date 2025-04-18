@@ -116,9 +116,10 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
 			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 				return test.validityWindow
 			})
 			for i, blk := range test.blocks {
@@ -272,9 +273,10 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
 			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 				return test.validityWindow
 			})
 			for i, blk := range test.blocks {
@@ -357,13 +359,14 @@ func TestVerifyTimestamp(t *testing.T) {
 }
 
 // TestValidityWindowBoundaryLifespan tests that a container included at the validity window boundary transitions
-// seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
+// seamlessly from failing verification due to a duplicate within the validity window to failing because it expired.
 func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
 
 	chainIndex := &testChainIndex{}
 	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+	validityWindow := NewTimeValidityWindow[container](ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 		return validityWindowDuration
 	})
 
@@ -397,10 +400,11 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 
 func TestAcceptHistorical(t *testing.T) {
 	r := require.New(t)
+	ctx := context.Background()
 
 	chainIndex := &testChainIndex{}
 	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
+	validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
 		return validityWindowDuration
 	})
 
@@ -425,7 +429,8 @@ func TestAcceptHistorical(t *testing.T) {
 }
 
 type testChainIndex struct {
-	blocks map[ids.ID]ExecutionBlock[container]
+	beforeSaveFunc func(blocks map[ids.ID]ExecutionBlock[container]) error
+	blocks         map[ids.ID]ExecutionBlock[container]
 }
 
 func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
@@ -433,6 +438,18 @@ func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (Exe
 		return blk, nil
 	}
 	return nil, database.ErrNotFound
+}
+
+func (t *testChainIndex) SaveHistorical(blk ExecutionBlock[container]) error {
+	if t.blocks == nil {
+		t.blocks = make(map[ids.ID]ExecutionBlock[container])
+	}
+
+	if t.beforeSaveFunc != nil {
+		return t.beforeSaveFunc(t.blocks)
+	}
+	t.blocks[blk.GetID()] = blk
+	return nil
 }
 
 func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[container]) {

@@ -128,3 +128,41 @@ func TestChainIndexExpiry(t *testing.T) {
 	confirmBlockIndexed(r, ctx, chainIndex, blk2, database.ErrNotFound)
 	confirmLastAcceptedHeight(r, ctx, chainIndex, blk3.GetHeight())
 }
+
+func TestChainIndex_SaveHistorical(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	chainIndex, err := newTestChainIndex(NewDefaultConfig(), memdb.New())
+	r.NoError(err)
+
+	// Create and save a genesis block normally first
+	genesisBlk := &testBlock{height: 0}
+	r.NoError(chainIndex.UpdateLastAccepted(ctx, genesisBlk))
+	confirmBlockIndexed(r, ctx, chainIndex, genesisBlk, nil)
+	confirmLastAcceptedHeight(r, ctx, chainIndex, genesisBlk.GetHeight())
+
+	// Create a higher height block, but don't make it the last accepted
+	historicalBlk := &testBlock{height: 100}
+
+	// Save the historical block
+	r.NoError(chainIndex.SaveHistorical(historicalBlk))
+
+	// Verify the historical block is indexed
+	confirmBlockIndexed(r, ctx, chainIndex, historicalBlk, nil)
+
+	// Verify lastAccepted hasn't changed (still points to genesis)
+	confirmLastAcceptedHeight(r, ctx, chainIndex, genesisBlk.GetHeight())
+
+	// Create and save a normal block that should become the new last accepted
+	blk1 := &testBlock{height: 1}
+	r.NoError(chainIndex.UpdateLastAccepted(ctx, blk1))
+
+	// Verify the new block is indexed
+	confirmBlockIndexed(r, ctx, chainIndex, blk1, nil)
+
+	// Verify the historical block is still indexed
+	confirmBlockIndexed(r, ctx, chainIndex, historicalBlk, nil)
+
+	// Verify lastAccepted points to the new block
+	confirmLastAcceptedHeight(r, ctx, chainIndex, blk1.GetHeight())
+}
