@@ -766,6 +766,10 @@ func (vm *VM) ParseBlock(ctx context.Context, bytes []byte) (*dsmr.Block, error)
 	return dsmr.ParseBlock(bytes)
 }
 
+// TODO(chunk_building): start chunk building routine that runs until shutdown
+// and periodically (configurable interval) builds chunks using the DSMR package
+// and pulling partitioned transactions from the mempool (do not assume all txs in the mempool are assigned to our partition)
+// gracefully handle transition from validator to non-validator and back
 func (vm *VM) BuildBlock(ctx context.Context, pChainCtx *block.Context, parent *dsmr.Block) (*dsmr.Block, *dsmr.Block, error) {
 	defer vm.checkActivity(ctx)
 
