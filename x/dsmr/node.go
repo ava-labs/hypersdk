@@ -38,6 +38,8 @@ var (
 )
 
 type Rules struct {
+	// TODO(deferred_root):
+	MaxStateRootDepth               uint64 // Maximum diff allowed between a block and the ancestor whose state root it references
 	MinBlockGap                     int64
 	MinEmptyBlockGap                int64
 	ValidityWindow                  int64
@@ -138,6 +140,7 @@ func NewNode[T AssembledBlock](
 	chainState ChainState,
 	ruleFactory RuleFactory,
 	chunkValidityWindow *validitywindow.TimeValidityWindow[EChunk],
+	// TODO(deferred_root): add chain index component to the node
 	assembler Assembler[T],
 	lastAccepted T,
 	db database.Database,
@@ -221,6 +224,10 @@ func (n *Node[_]) BuildBlock(
 		selectedChunks = append(selectedChunks, cert)
 	}
 
+	// TODO(deferred_root):
+	// add a function to select the optimal state root height
+	// include the referenced state root height in the block
+
 	return NewBlock(
 		parentBlock.id,
 		parentBlock.Height+1,
@@ -298,6 +305,10 @@ func (n *Node[_]) VerifyBlock(
 			return err
 		}
 	}
+
+	// TODO(deferred_root):
+	// verify the referenced state root height >= parent's referenced state root height
+	// verify the referenced state root has been accepted and is correct
 
 	return nil
 }
@@ -387,6 +398,8 @@ func (n *Node[T]) CompleteAccept(
 	if err != nil {
 		return utils.Zero[T](), err
 	}
+	// TODO(deferred_root): make sure we have indexed the accepted block (either here or leave it to consensus engine)
+	// so that it can be accessed for deferred root verification.
 	n.lastAccepted = assembledBlock
 	return assembledBlock, nil
 }

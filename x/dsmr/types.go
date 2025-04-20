@@ -213,6 +213,10 @@ type Block struct {
 	Chunks       []*ChunkCertificate `canoto:"repeated pointer,4"`
 	BlockContext *block.Context      `canoto:"pointer,5"`
 
+	// TODO(deferred_root):
+	// StateRoot
+	// StateRootDepth
+
 	canotoData canotoData_Block
 
 	bytes []byte
