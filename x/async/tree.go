@@ -128,6 +128,8 @@ func NewTree[T Tx](
 	}, nil
 }
 
+// TODO(async_verifier):
+// add unit tests for arbitrary container verification over a chain
 func (t *Tree[T]) Verify(container Container[T]) error {
 	containerEpoch := container.Epoch()
 	if containerEpoch < t.tip.Epoch() {

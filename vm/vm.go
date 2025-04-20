@@ -787,6 +787,8 @@ func (vm *VM) AcceptBlock(ctx context.Context, acceptedParent *chain.OutputBlock
 	return vm.dsmrNode.AcceptBlock(ctx, block)
 }
 
+// TODO(async_verifier):
+// Integrate async verifier into tx submission and add vm level unit tests
 func (vm *VM) Submit(
 	ctx context.Context,
 	txs []*chain.Transaction,
