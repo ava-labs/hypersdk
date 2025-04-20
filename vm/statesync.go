@@ -38,6 +38,11 @@ func GetStateSyncConfig(config hcontext.Config) (StateSyncConfig, error) {
 	return hcontext.GetConfig(config, StateSyncNamespace, NewDefaultStateSyncConfig())
 }
 
+// TODO(dsmr_state_sync):
+// fetch validity window of DSMR chunk blocks
+// fetch validity window of internal blocks
+// fetch merkle state with x/sync
+// onFinish -> re-execute sufficient blocks to reach the last accepted state and set the last accepted block
 func (vm *VM) initStateSync(ctx context.Context) error {
 	return nil
 	// stateSyncConfig, err := GetStateSyncConfig(vm.snowInput.Config)
