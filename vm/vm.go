@@ -566,8 +566,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 
 	isValidityWindowComplete := vm.chainTimeValidityWindow.Complete(ctx, executionBlk)
 	if !isValidityWindowComplete {
-		// Fail loudly, a validity window is critical part to the vm
-		panic("critical error: validity window's partial state may lead to inconsistencies")
+		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
 	}
 
 	vm.normalOp.Store(true)
