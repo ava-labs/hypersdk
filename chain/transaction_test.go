@@ -64,7 +64,7 @@ func TestTransactionJSON(t *testing.T) {
 	txFromJSON := new(chain.Transaction)
 	err = txFromJSON.UnmarshalJSON(b, parser)
 	r.NoError(err, "failed to unmarshal tx JSON: %q", string(b))
-	equalTx(r, signedTx, txFromJSON)
+	r.Equal(signedTx, txFromJSON)
 }
 
 func TestSignTransaction(t *testing.T) {
@@ -93,7 +93,7 @@ func TestSignTransaction(t *testing.T) {
 	unsignedTxAfterSignBytes := signedTx.TransactionData.UnsignedBytes()
 	r.Equal(txBeforeSignBytes, unsignedTxAfterSignBytes, "signed unsigned bytes matches original unsigned tx data")
 	r.NoError(signedTx.VerifyAuth(context.Background()))
-	equalTxData(r, txData, signedTx.TransactionData, "signed tx data matches original tx data")
+	r.Equal(txData, signedTx.TransactionData, "signed tx data matches original tx data")
 
 	signedTxBytes := signedTx.Bytes()
 	r.Equal(signedTx.GetID(), utils.ToID(signedTxBytes), "signed txID matches expected txID")
@@ -105,7 +105,7 @@ func TestSignTransaction(t *testing.T) {
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
 	r.NoError(err)
 
-	equalTx(r, signedTx, parsedTx)
+	r.Equal(signedTx, parsedTx)
 }
 
 func TestSignRawActionBytesTx(t *testing.T) {
@@ -141,7 +141,7 @@ func TestSignRawActionBytesTx(t *testing.T) {
 	parseRawSignedTx, err := chain.UnmarshalTx(rawSignedTxBytes, parser)
 	r.NoError(err)
 
-	equalTx(r, signedTx, parseRawSignedTx)
+	r.Equal(signedTx, parseRawSignedTx)
 }
 
 func TestUnmarshalTx(t *testing.T) {
@@ -169,7 +169,7 @@ func TestUnmarshalTx(t *testing.T) {
 	parsedTx, err := chain.UnmarshalTx(signedTxBytes, parser)
 	r.NoError(err)
 
-	equalTx(r, signedTx, parsedTx)
+	r.Equal(signedTx, parsedTx)
 	r.Equal(preSignedTxBytes, signedTxBytes, "expected %x, actual %x", preSignedTxBytes, signedTxBytes)
 }
 
@@ -434,31 +434,4 @@ func TestPreExecute(t *testing.T) {
 			)
 		})
 	}
-}
-
-// equalTx confirms that the expected and actual transactions are equal
-//
-// We cannot do a simple equals check here because:
-// 1. AvalancheGo codec does not differentiate nil from empty slice, whereas equals does
-// 2. UnmarshalCanoto does not populate the canotoData size field
-// We check each field individually to confirm parsing produced the same result
-// We can remove this and use a simple equals check after resolving these issues:
-// 1. Fix equals check on unmarshalled canoto values https://github.com/StephenButtolph/canoto/issues/73
-// 2. Add dynamic serialization support to canoto https://github.com/StephenButtolph/canoto/issues/75
-//
-// TODO: replace this at the call site with a simple equals check after fixing the above issues
-func equalTx(r *require.Assertions, expected *chain.Transaction, actual *chain.Transaction) {
-	equalTxData(r, expected.TransactionData, actual.TransactionData)
-	r.Equal(expected.Auth, actual.Auth)
-	r.Equal(expected.Bytes(), actual.Bytes())
-}
-
-func equalTxData(r *require.Assertions, expected chain.TransactionData, actual chain.TransactionData, msgAndArgs ...interface{}) {
-	r.Equal(expected.Base.MarshalCanoto(), actual.Base.MarshalCanoto(), msgAndArgs...)
-	r.Equal(len(expected.Actions), len(actual.Actions), msgAndArgs...)
-	for i, action := range expected.Actions {
-		msgAndArgs = append(msgAndArgs, "index", i)
-		r.Equal(action.Bytes(), actual.Actions[i].Bytes(), msgAndArgs...)
-	}
-	r.Equal(expected.UnsignedBytes(), actual.UnsignedBytes(), msgAndArgs...)
 }
