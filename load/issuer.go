@@ -48,8 +48,14 @@ func NewDefaultIssuer(uri string, tracker Tracker[ids.ID]) (*DefaultIssuer, erro
 	}, nil
 }
 
-func (i *DefaultIssuer) Listen(ctx context.Context) error {
-	defer i.client.Close()
+func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
+	defer func() {
+		closeErr := i.client.Close()
+		if closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
