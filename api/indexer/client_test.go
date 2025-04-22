@@ -160,7 +160,7 @@ func TestIndexerClientTransactions(t *testing.T) {
 		{
 			name:            "malformed block",
 			blockIndex:      numExecutedBlocks - 1,
-			txIndex:         numTxs - 1,
+			txIndex:         0,
 			found:           false,
 			getTxResultsErr: errTxResultNotFound,
 			getTxErr:        errTxResultNotFound,
@@ -190,17 +190,19 @@ func TestIndexerClientTransactions(t *testing.T) {
 
 			if tt.malformedBlock {
 				// create a malformed block and have the indexer add it.
-				// removing of the first result makes the length of the ExecutionResults differ from the
-				// transaction index within the block.
-				executedBlock.ExecutionResults.Results = executedBlock.ExecutionResults.Results[1:]
+				// clearing out the results ensure that we won't be able to find the result corresponding to any
+				// of the transactions.
+				executedBlock.ExecutionResults.Results = []*chain.Result{}
 				r.NoError(indexer.Notify(ctx, executedBlock))
 			}
 
 			txResponse, found, err := client.GetTxResults(ctx, executedTx.GetID())
-			if tt.getTxResultsErr != nil || err != nil {
+			if tt.getTxResultsErr != nil {
+				r.Error(err)
 				r.ErrorContains(err, tt.getTxResultsErr.Error())
+				err = nil
 			}
-
+			r.NoError(err)
 			r.Equal(tt.found, found)
 			if tt.found {
 				r.Equal(GetTxResponse{
@@ -211,10 +213,12 @@ func TestIndexerClientTransactions(t *testing.T) {
 			}
 
 			txResponse, tx, found, err := client.GetTx(ctx, executedTx.GetID(), tt.parser)
-			if tt.getTxErr != nil || err != nil {
+			if tt.getTxErr != nil {
+				r.Error(err)
 				r.ErrorContains(err, tt.getTxErr.Error())
 				return
 			}
+			r.NoError(err)
 			r.Equal(tt.found, found)
 			if !tt.found {
 				return
