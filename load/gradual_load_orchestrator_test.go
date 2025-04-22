@@ -87,7 +87,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	}
 }
 
-func TestGradualLoadOrchestratorInitialization(t *testing.T) {
+func TestGradualLoadOrchestratorConstructor(t *testing.T) {
 	tests := []struct {
 		name        string
 		issuers     []Issuer[ids.ID]
