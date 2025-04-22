@@ -117,7 +117,6 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	}
 
 	deleteBlkID, err := c.GetBlockIDAtHeight(ctx, expiryHeight)
-	fmt.Print("deleting block ", deleteBlkID, " at height ", expiryHeight, "\n")
 	if err != nil {
 		return err
 	}
