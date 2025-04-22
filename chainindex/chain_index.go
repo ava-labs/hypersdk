@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -79,7 +80,7 @@ func New[T Block](
 		return nil, errBlockCompactionFrequencyZero
 	}
 
-	return &ChainIndex[T]{
+	ci := &ChainIndex[T]{
 		config: config,
 		// Offset by random number to ensure the network does not compact simultaneously
 		compactionOffset: rand.Uint64() % config.BlockCompactionFrequency, //nolint:gosec
@@ -87,7 +88,10 @@ func New[T Block](
 		log:              log,
 		db:               db,
 		parser:           parser,
-	}, nil
+	}
+
+	ctx := context.Background()
+	return ci, ci.cleanupOnStartup(ctx)
 }
 
 func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error) {
@@ -101,18 +105,19 @@ func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error)
 func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 	batch := c.db.NewBatch()
 
-	heightBytes := binary.BigEndian.AppendUint64(nil, blk.GetHeight())
+	height := blk.GetHeight()
+	heightBytes := binary.BigEndian.AppendUint64(nil, height)
 	if err := errors.Join(batch.Put(lastAcceptedKey, heightBytes), c.writeBlock(batch, blk)); err != nil {
 		return err
 	}
 
-	height := blk.GetHeight()
 	expiryHeight := height - c.config.AcceptedBlockWindow
 	if c.config.AcceptedBlockWindow == 0 || expiryHeight == 0 || expiryHeight >= height { // ensure we don't free genesis
 		return batch.Write()
 	}
 
 	deleteBlkID, err := c.GetBlockIDAtHeight(ctx, expiryHeight)
+	fmt.Print("deleting block ", deleteBlkID, " at height ", expiryHeight, "\n")
 	if err != nil {
 		return err
 	}
@@ -197,6 +202,81 @@ func (_ *ChainIndex[T]) writeBlock(batch database.Batch, blk T) error {
 	)
 }
 
+// cleanupOnStartup performs cleanup of historical blocks outside the accepted window.
+//
+// The cleanup removes all blocks below this threshold:
+// | <--- Historical Blocks (delete) ---> | <--- AcceptedBlockWindow ---> | Last Accepted |
+func (c *ChainIndex[T]) cleanupOnStartup(ctx context.Context) error {
+	lastAcceptedHeight, err := c.GetLastAcceptedHeight(ctx)
+	if err != nil && err != database.ErrNotFound {
+		return err
+	}
+
+	// If there's no accepted window or lastAcceptedHeight is too small, nothing to clean
+	if c.config.AcceptedBlockWindow == 0 || lastAcceptedHeight <= c.config.AcceptedBlockWindow {
+		return nil
+	}
+
+	thresholdHeight := lastAcceptedHeight - c.config.AcceptedBlockWindow
+
+	c.log.Debug("cleaning up historical blocks outside accepted window",
+		zap.Uint64("lastAcceptedHeight", lastAcceptedHeight),
+		zap.Uint64("thresholdHeight", thresholdHeight),
+		zap.Uint64("acceptedBlockWindow", c.config.AcceptedBlockWindow))
+
+	it := c.db.NewIteratorWithPrefix([]byte{blockHeightIDPrefix})
+	defer it.Release()
+
+	batch := c.db.NewBatch()
+
+	for it.Next() {
+		key := it.Key()
+		height := extractBlockHeightFromKey(key)
+
+		// Nothing to delete after the threshold height
+		if height >= thresholdHeight {
+			break
+		}
+
+		// Skip if:
+		// Block is at genesis height (0)
+		if height == 0 {
+			continue
+		}
+
+		deleteBlkID, err := c.GetBlockIDAtHeight(ctx, height)
+		if err != nil {
+			return err
+		}
+
+		if err = errors.Join(
+			batch.Delete(prefixBlockKey(height)),
+			batch.Delete(prefixBlockIDHeightKey(deleteBlkID)),
+			batch.Delete(prefixBlockHeightIDKey(height)),
+		); err != nil {
+			return err
+		}
+		c.metrics.deletedBlocks.Inc()
+
+		if height%c.config.BlockCompactionFrequency == c.compactionOffset {
+			go func() {
+				start := time.Now()
+				if err := c.db.Compact([]byte{blockPrefix}, prefixBlockKey(height)); err != nil {
+					c.log.Error("failed to compact block store", zap.Error(err))
+					return
+				}
+				c.log.Info("compacted disk blocks", zap.Uint64("end", height), zap.Duration("t", time.Since(start)))
+			}()
+		}
+	}
+
+	if err := it.Error(); err != nil {
+		return fmt.Errorf("iterator error during cleanup: %w", err)
+	}
+
+	return batch.Write()
+}
+
 func prefixBlockKey(height uint64) []byte {
 	k := make([]byte, 1+consts.Uint64Len)
 	k[0] = blockPrefix
@@ -216,4 +296,10 @@ func prefixBlockHeightIDKey(height uint64) []byte {
 	k[0] = blockHeightIDPrefix
 	binary.BigEndian.PutUint64(k[1:], height)
 	return k
+}
+
+// extractBlockHeightFromKey extracts block height from the key.
+// The key is expected to be in the format: [1-byte prefix][8-byte big-endian encoded uint64]
+func extractBlockHeightFromKey(key []byte) uint64 {
+	return binary.BigEndian.Uint64(key[1:])
 }

@@ -166,3 +166,136 @@ func TestChainIndex_SaveHistorical(t *testing.T) {
 	// Verify lastAccepted points to the new block
 	confirmLastAcceptedHeight(r, ctx, chainIndex, blk1.GetHeight())
 }
+
+func TestChainIndex_Cleanup(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 Config
+		setupFunc              func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
+		verifyAfterCleanupFunc func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
+	}{
+		{
+			name: "If there's no accepted window, nothing to clean",
+			config: Config{
+				AcceptedBlockWindow:      0,
+				BlockCompactionFrequency: 1,
+			},
+			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// Add blocks 0-10
+				for i := 0; i <= 10; i++ {
+					blkHeight := uint64(i)
+					blk := &testBlock{height: blkHeight}
+					if i < 5 {
+						r.NoError(chainIndex.SaveHistorical(blk))
+					} else {
+						r.NoError(chainIndex.UpdateLastAccepted(ctx, blk))
+					}
+					confirmBlockIndexed(r, ctx, chainIndex, blk, nil)
+				}
+				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
+			},
+			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// All blocks should still exist
+				for i := uint64(0); i <= 10; i++ {
+					_, err := chainIndex.GetBlockByHeight(ctx, i)
+					r.NoError(err, "Block at height %d should exist", i)
+				}
+			},
+		},
+		{
+			name: "If lastAcceptedHeight is too small (less than window), nothing to clean",
+			config: Config{
+				AcceptedBlockWindow:      20,
+				BlockCompactionFrequency: 1,
+			},
+			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// Add blocks 0-10
+				for i := 0; i <= 10; i++ {
+					blk := &testBlock{height: uint64(i)}
+					if i < 5 {
+						r.NoError(chainIndex.SaveHistorical(blk))
+					} else {
+						r.NoError(chainIndex.UpdateLastAccepted(ctx, blk))
+					}
+					confirmBlockIndexed(r, ctx, chainIndex, blk, nil)
+				}
+				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
+			},
+			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// All blocks should still exist because 10 < 20 (window)
+				for i := uint64(0); i <= 10; i++ {
+					_, err := chainIndex.GetBlockByHeight(ctx, i)
+					r.NoError(err, "Block at height %d should exist", i)
+				}
+			},
+		},
+		{
+			name: "Should cleanup historical blocks",
+			config: Config{
+				AcceptedBlockWindow:      5,
+				BlockCompactionFrequency: 1,
+			},
+			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// Create blocks in reverse order (historical first)
+
+				// Historical blocks (0-7) added in reverse order
+				for i := 7; i >= 0; i-- {
+					blk := &testBlock{height: uint64(i)}
+					r.NoError(chainIndex.SaveHistorical(blk))
+					confirmBlockIndexed(r, ctx, chainIndex, blk, nil)
+					_, err := chainIndex.GetLastAcceptedHeight(ctx)
+					r.ErrorIs(err, database.ErrNotFound)
+				}
+
+				// Last accepted blocks (8-10)
+				for i := 8; i <= 10; i++ {
+					blk := &testBlock{height: uint64(i)}
+					// UpdateLastAccepted should clean blocks: `expiryHeight := i-AcceptedBlockWindow`
+					// example: 8-5 = 3, 9-5 = 4, 10-5 = 5
+					r.NoError(chainIndex.UpdateLastAccepted(ctx, blk))
+					confirmBlockIndexed(r, ctx, chainIndex, blk, nil)
+				}
+
+				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
+			},
+			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+				// UpdateLastAccepted deleted blocks, 3, 4 and 5 but there's gap 1 and 2, those should be deleted as well
+				for i := 1; i <= 5; i++ {
+					_, err := chainIndex.GetBlockByHeight(ctx, uint64(i))
+					r.ErrorIs(err, database.ErrNotFound, "Block at height %d should be deleted", i)
+				}
+
+				// Blocks 6-10 should still exist
+				for i := uint64(6); i <= 10; i++ {
+					_, err := chainIndex.GetBlockByHeight(ctx, i)
+					r.NoError(err, "Block at height %d should exist", i)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+
+			chainIndex, err := newTestChainIndex(test.config, memdb.New())
+			r.NoError(err)
+
+			if test.setupFunc != nil {
+				test.setupFunc(ctx, r, chainIndex)
+			}
+
+			r.NoError(chainIndex.cleanupOnStartup(ctx))
+
+			if test.verifyAfterCleanupFunc != nil {
+				test.verifyAfterCleanupFunc(ctx, r, chainIndex)
+			}
+
+			// Genesis should never be deleted
+			genesis, err := chainIndex.GetBlockByHeight(ctx, uint64(0))
+			r.Equal(uint64(0), genesis.GetHeight(), "Genesis block should not be deleted")
+			r.NoError(err)
+		})
+	}
+}
