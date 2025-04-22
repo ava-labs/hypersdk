@@ -56,10 +56,7 @@ func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
 		}
 	}()
 
-	for {
-		if ctx.Err() != nil {
-			return nil
-		}
+	for ctx.Err() == nil || !i.isFinished() {
 		txID, result, err := i.client.ListenTx(ctx)
 		if err != nil && ctx.Err() == nil {
 			return err
@@ -72,10 +69,8 @@ func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
 		}
 
 		i.incrementReceivedTxs()
-		if i.isFinished() {
-			return nil
-		}
 	}
+	return nil
 }
 
 func (i *DefaultIssuer) Stop() {
