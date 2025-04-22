@@ -61,7 +61,7 @@ func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
 			return nil
 		}
 		txID, result, err := i.client.ListenTx(ctx)
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if err != nil && ctx.Err() == nil {
 			return err
 		}
 		// accepted txs have a non-nil result
