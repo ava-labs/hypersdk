@@ -59,6 +59,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		testingNetworkConfig,
 		generator,
 		expectedABI,
+		authFactories[2],
 		loadTxGenerators,
 		hload.ShortBurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,

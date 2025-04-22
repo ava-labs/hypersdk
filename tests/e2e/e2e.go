@@ -52,6 +52,7 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
+	loadFactory       chain.AuthFactory
 	loadTxGenerator   LoadTxGenerator
 	shortBurstConfig  load.ShortBurstOrchestratorConfig
 	gradualLoadConfig load.GradualLoadOrchestratorConfig
@@ -78,6 +79,7 @@ func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
+	loadAccount chain.AuthFactory,
 	generator LoadTxGenerator,
 	shortBurstConf load.ShortBurstOrchestratorConfig,
 	gradualLoadConf load.GradualLoadOrchestratorConfig,
@@ -86,6 +88,7 @@ func SetWorkload(
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
+	loadFactory = loadAccount
 	loadTxGenerator = generator
 	shortBurstConfig = shortBurstConf
 	gradualLoadConfig = gradualLoadConf
@@ -215,7 +218,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransferF, loadFactory, uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -247,7 +250,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
 
-		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, loadFactory))
 	})
 
 	ginkgo.It("Gradual Load Workload", func() {
@@ -257,7 +260,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		blockchainID := e2e.GetEnv(tc).GetNetwork().GetSubnet(networkConfig.Name()).Chains[0].ChainID
 		uris := getE2EURIs(tc, blockchainID)
 
-		accounts, err := distributeFunds(ctx, tc, createTransferF, networkConfig.AuthFactories()[0], uint64(len(uris)))
+		accounts, err := distributeFunds(ctx, tc, createTransferF, loadFactory, uint64(len(uris)))
 		require.NoError(err)
 
 		txGenerators, err := loadTxGenerator(
@@ -287,7 +290,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
 
-		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, networkConfig.AuthFactories()[0]))
+		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, loadFactory))
 	})
 })
 
