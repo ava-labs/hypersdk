@@ -57,10 +57,8 @@ func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
 	}()
 
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return nil
-		default:
 		}
 		txID, result, err := i.client.ListenTx(ctx)
 		if err != nil && !errors.Is(err, context.Canceled) {

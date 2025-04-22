@@ -236,10 +236,8 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 	for i, issuer := range o.issuers {
 		o.issuerGroup.Go(func() error {
 			for {
-				select {
-				case <-ctx.Done():
-					return nil
-				default:
+				if ctx.Err() != nil {
+					return nil //nolint:nilerr
 				}
 				currTime := time.Now()
 				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
