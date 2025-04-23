@@ -18,7 +18,7 @@ import (
 var (
 	_ Issuer[*chain.Transaction] = (*DefaultIssuer)(nil)
 
-	ErrIssuedAlreadyStopped = errors.New("issuer already stopped")
+	ErrIssuerAlreadyStopped = errors.New("issuer already stopped")
 )
 
 type DefaultIssuer struct {
@@ -87,7 +87,7 @@ func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error 
 	defer i.lock.Unlock()
 
 	if i.stopped {
-		return ErrIssuedAlreadyStopped
+		return ErrIssuerAlreadyStopped
 	}
 
 	if err := i.client.RegisterTx(tx); err != nil {
