@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"math/rand"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/database/memdb"
@@ -111,22 +112,6 @@ func GenerateEmptyExecutedBlocks(
 	return executedBlocks
 }
 
-// TxListGenerator is a function that should return a list of valid txs of
-// length numTxsPerBlock (derived from BlockBenchmark).
-type TxListGenerator func(ruleFactory chain.RuleFactory, unitPrices fees.Dimensions, numTxsPerBlock int64) ([]*chain.Transaction, error)
-
-func EmptyTxListGenerator(chain.RuleFactory, fees.Dimensions, int64) ([]*chain.Transaction, error) {
-	return []*chain.Transaction{}, nil
-}
-
-// BlockBenchmarkHelper initializes a BlockBenchmark test by returning the
-// genesis and TxListGenerator to be used.
-type BlockBenchmarkHelper func(numTxsPerBlock uint64) (genesis.Genesis, TxListGenerator, error)
-
-func NoopBlockBenchmarkHelper(uint64) (genesis.Genesis, TxListGenerator, error) {
-	return genesis.NewDefaultGenesis([]*genesis.CustomAllocation{}), EmptyTxListGenerator, nil
-}
-
 // parentContext holds values relating to the parent block that is required
 // for producing the child block.
 type parentContext struct {
@@ -141,12 +126,14 @@ type parentContext struct {
 //
 // Block production is a simplified version of Builder. We execute
 // transactions followed by writing the chain metadata to the state diff.
-func GenerateExecutionBlocks(
+func GenerateExecutionBlocks[T any](
 	ctx context.Context,
 	ruleFactory chain.RuleFactory,
 	metadataManager chain.MetadataManager,
 	balanceHandler chain.BalanceHandler,
-	txListGenerator TxListGenerator,
+	factories []chain.AuthFactory,
+	stateAccessDistributor StateAccessDistributor[T],
+	keys []T,
 	parentCtx *parentContext,
 	numBlocks uint64,
 	numTxsPerBlock uint64,
@@ -170,7 +157,13 @@ func GenerateExecutionBlocks(
 		feeManager = feeManager.ComputeNext(timestamp, rules)
 		unitPrices := feeManager.UnitPrices()
 
-		txs, err := txListGenerator(ruleFactory, unitPrices, timestamp)
+		txs, err := stateAccessDistributor.Generate(
+			numTxsPerBlock,
+			factories,
+			keys,
+			unitPrices,
+			timestamp,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +236,7 @@ func GenerateExecutionBlocks(
 // BlockBenchmark is a parameterized benchmark. It generates NumBlocks
 // with NumTxsPerBlock, and then calls Processor.Execute to process the block
 // list b.N times.
-type BlockBenchmark struct {
+type BlockBenchmark[T any] struct {
 	MetadataManager chain.MetadataManager
 	BalanceHandler  chain.BalanceHandler
 	RuleFactory     chain.RuleFactory
@@ -252,7 +245,8 @@ type BlockBenchmark struct {
 	Config                chain.Config
 	AuthVerificationCores int
 
-	BlockBenchmarkHelper BlockBenchmarkHelper
+	GenesisF               GenesisGenerator[T]
+	StateAccessDistributor StateAccessDistributor[T]
 
 	// NumBlocks is set as a hyperparameter to avoid using b.N to generate
 	// the number of blocks to run the benchmark on.
@@ -260,7 +254,7 @@ type BlockBenchmark struct {
 	NumTxsPerBlock uint64
 }
 
-func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
+func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	r := require.New(b)
 
 	metrics, err := chain.NewMetrics(prometheus.NewRegistry())
@@ -308,7 +302,7 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.Config,
 	)
 
-	genesis, txListGenerator, err := test.BlockBenchmarkHelper(test.NumTxsPerBlock)
+	factories, keys, genesis, err := test.GenesisF(test.NumTxsPerBlock)
 	r.NoError(err)
 
 	genesisExecutionBlk, genesisView, err := chain.NewGenesisCommit(
@@ -336,7 +330,9 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 		test.RuleFactory,
 		test.MetadataManager,
 		test.BalanceHandler,
-		txListGenerator,
+		factories,
+		test.StateAccessDistributor,
+		keys,
 		parentCtx,
 		test.NumBlocks,
 		test.NumTxsPerBlock,
@@ -373,4 +369,197 @@ func (test *BlockBenchmark) Run(ctx context.Context, b *testing.B) {
 	numTxsExecuted := numBlocksExecuted * test.NumTxsPerBlock
 	b.ReportMetric(float64(numTxsExecuted)/b.Elapsed().Seconds(), "tps")
 	b.ReportMetric(float64(numBlocksExecuted)/b.Elapsed().Seconds(), "blocks/s")
+}
+
+// GenesisGenerator is a helper function that returns the following:
+//
+// 1. numTxsPerBlock auth factories
+// 2. the set of keys used for state access distribution
+// 3. the genesis of the chain
+//
+// The state access set is returned here since its possible that the state
+// access set is derived from the generated auth factories
+type GenesisGenerator[T any] func(numTxsPerBlock uint64) ([]chain.AuthFactory, []T, genesis.Genesis, error)
+
+// ActionConstructor converts a state access key into an action.
+type ActionConstructor[T any] interface {
+	// Generate takes in a key from the state access set and returns an action.
+	// The action returned should be unique relative to the state access key.
+	Generate(k T, nonce uint64) chain.Action
+}
+
+// StateAccessDistributor generates a list of transactions whose state accesses
+// vary depending on the implementation.
+type StateAccessDistributor[T any] interface {
+	// Generate returns a list of transactions
+	//
+	// For each transaction, Generate should select a key from the state access set
+	// (keys) and construct an action. This action is then used to create a
+	// transaction.
+	//
+	// Implementations of Generate will vary in the way they select state access
+	// keys (e.g. using unique keys, using the same key, etc.).
+	Generate(
+		numTxs uint64,
+		factories []chain.AuthFactory,
+		keys []T,
+		unitPrices fees.Dimensions,
+		timestamp int64,
+	) ([]*chain.Transaction, error)
+}
+
+type NoopDistributor[T any] struct{}
+
+func (NoopDistributor[T]) Generate(uint64, []chain.AuthFactory, []T, fees.Dimensions, int64) ([]*chain.Transaction, error) {
+	return nil, nil
+}
+
+// ParallelDistribution generates a list of transactions that are each assigned
+// a unique state access key. When using pessimistic concurrency control, this
+// allows for the transactions to be executed in parallel.
+type ParallelDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewParallelDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *ParallelDistributor[T] {
+	return &ParallelDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (p *ParallelDistributor[T]) Generate(
+	numTxs uint64,
+	factories []chain.AuthFactory,
+	keys []T,
+	unitPrices fees.Dimensions,
+	timestamp int64,
+) ([]*chain.Transaction, error) {
+	if int(numTxs) != len(keys) || int(numTxs) != len(factories) {
+		return nil, ErrMismatchedKeysAndFactoriesLen
+	}
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := p.actionConstructor.Generate(keys[i], p.nonce)
+		p.nonce++
+
+		tx, err := chain.GenerateTransaction(
+			p.ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
+}
+
+// SerialDistribution generates a list of transactions that are each assigned
+// the same state access key. As a result, the transactions must be executed serially.
+type SerialDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewSerialDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *SerialDistributor[T] {
+	return &SerialDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (s *SerialDistributor[T]) Generate(
+	numTxs uint64,
+	factories []chain.AuthFactory,
+	keys []T,
+	unitPrices fees.Dimensions,
+	timestamp int64,
+) ([]*chain.Transaction, error) {
+	if len(keys) != 1 {
+		return nil, ErrSingleKeyLengthOnly
+	}
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := s.actionConstructor.Generate(keys[0], s.nonce)
+		s.nonce++
+
+		tx, err := chain.GenerateTransaction(
+			s.ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
+}
+
+// ZipfDistribution generates a list of transactions whose state access key is
+// sampled from a zipf distribution.
+type ZipfDistributor[T any] struct {
+	nonce             uint64
+	ruleFactory       chain.RuleFactory
+	actionConstructor ActionConstructor[T]
+}
+
+func NewZipfDistributor[T any](actionConstructor ActionConstructor[T], ruleFactory chain.RuleFactory) *ZipfDistributor[T] {
+	return &ZipfDistributor[T]{
+		actionConstructor: actionConstructor,
+		ruleFactory:       ruleFactory,
+	}
+}
+
+func (z *ZipfDistributor[T]) Generate(
+	numTxs uint64,
+	factories []chain.AuthFactory,
+	keys []T,
+	unitPrices fees.Dimensions,
+	timestamp int64,
+) ([]*chain.Transaction, error) {
+	if int(numTxs) != len(keys) || int(numTxs) != len(factories) {
+		return nil, ErrMismatchedKeysAndFactoriesLen
+	}
+
+	zipfSeed := rand.New(rand.NewSource(0)) //nolint:gosec
+	sZipf := 1.01
+	vZipf := 2.7
+	zipfGen := rand.NewZipf(zipfSeed, sZipf, vZipf, numTxs-1)
+
+	txs := make([]*chain.Transaction, numTxs)
+	for i := range numTxs {
+		action := z.actionConstructor.Generate(keys[zipfGen.Uint64()], z.nonce)
+		z.nonce++
+
+		tx, err := chain.GenerateTransaction(
+			z.ruleFactory,
+			unitPrices,
+			timestamp,
+			[]chain.Action{action},
+			factories[i],
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		txs[i] = tx
+	}
+
+	return txs, nil
 }
