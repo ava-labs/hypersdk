@@ -95,12 +95,23 @@ func (v *VM[I, O, A]) reprocessFromOutputToInput(ctx context.Context, targetInpu
 	return NewAcceptedBlock(v, targetInputBlock, outputBlock, acceptedBlock), nil
 }
 
-// ConsensusIndex provides a wrapper around the VM, which enables the chain developer to share the
-// caching layer provided by the VM and used in the consensus engine.
-// The ConsensusIndex additionally provides access to the accepted/preferred frontier by providing
-// accessors to the latest type of the frontier.
-// ie. last accepted block is guaranteed to have Accepted type available, whereas the preferred block
-// is only guaranteed to have the Output type available.
+// ConsensusIndex provides access to the current consensus state while offering
+// type-safety for blocks in different stages of processing.
+//
+// It serves two main purposes:
+//
+//  1. Provides developers with access to the caching layer built into the VM,
+//     eliminating the need to implement separate caching.
+//  2. Offers specialized accessors to blocks at different points in the consensus frontier:
+//     - GetLastAccepted() returns the block in its Accepted (A) state, which is guaranteed
+//     to be fully committed to the chain.
+//     - GetPreferredBlock() returns the block in its Output (O) state, representing
+//     the current preference that has been verified but may not yet be accepted.
+//
+// This type-safe approach ensures developers always have the appropriate block representation
+// based on its consensus status. For instance, a preferred block is only guaranteed to have
+// reached the Output state, while the last accepted block is guaranteed to have reached
+// the Accepted state with all its state transitions finalized.
 type ConsensusIndex[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }

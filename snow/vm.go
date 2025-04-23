@@ -1,6 +1,27 @@
 // Copyright (C) 2024, Ava Labs, Inv. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+// Package snow provides a simplified interface ([snow.Chain]) for building Virtual Machines (VMs)
+// on the Avalanche network by abstracting away the complexities of the consensus engine.
+// It handles consensus integration and provides a slimmed-down interface for VM developers to implement.
+//
+// # Core Concepts
+//
+// Snow introduces a type-safe block state system using generics to represent the
+// different states a block can be in during consensus:
+//
+//   - Block: The basic interface for blocks, requiring methods like GetID(), GetParent(), etc.
+//   - Input (I): Unverified blocks that have been parsed but not validated
+//   - Output (O): Verified blocks that have passed validation
+//   - Accepted (A): Blocks that have been accepted by consensus and committed to the chain
+//
+// # Benefits
+//
+// By using the snow package, VM developers can:
+//   - Focus on application-specific (VM) logic rather than consensus details
+//   - Work with type-safe block representations at each stage
+//   - Avoid common pitfalls in consensus integration
+//   - Leverage built-in health checks, metrics, and state sync
 package snow
 
 import (
@@ -30,6 +51,23 @@ import (
 	avacache "github.com/ava-labs/avalanchego/cache"
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
+
+// VM[I, O, A] Type:
+//
+// Core adapter implementing [snow.Chain] interface:
+//   - Manages verified blocks waiting for acceptance
+//   - Provides block caching and retrieval
+//   - Tracks last accepted block and preferences
+//   - Supports state synchronization
+//   - Handles metrics, health checks, and lifecycle management
+//
+// ConsensusIndex[I, O, A] Type:
+//
+// Provides access to consensus state:
+//   - Retrieves blocks by ID or height
+//   - Accesses preferred block's output state
+//   - Gets last accepted block's state
+//
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 

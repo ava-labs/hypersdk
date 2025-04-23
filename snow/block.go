@@ -42,8 +42,7 @@ type Block interface {
 	GetContext() *block.Context
 }
 
-// StatefulBlock implements snowman.Block and abstracts away the caching
-// and block pinning required by the AvalancheGo Consensus engine.
+// StatefulBlock implements [snowman.Block] it abstracts caching and block pinning required by the AvalancheGo Consensus engine.
 // This converts the VM DevX from implementing the consensus engine specific invariants
 // to implementing an input/output/accepted block type and handling the state transitions
 // between these types.
@@ -56,6 +55,8 @@ type Block interface {
 // verified/accepted to update a moving state sync target.
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
+//
+// [snowman.Block]: http://facebook.com
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I
 	Output   O
