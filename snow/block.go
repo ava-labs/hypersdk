@@ -43,7 +43,7 @@ type Block interface {
 }
 
 // StatefulBlock implements [snowman.Block] it abstracts caching and block pinning required by the AvalancheGo Consensus engine.
-// This converts the VM DevX from implementing the consensus engine specific invariants
+// This converts the VM DevX from implementing the consensus engine-specific invariants
 // to implementing an input/output/accepted block type and handling the state transitions
 // between these types.
 // In conjunction with the AvalancheGo Consensus engine, this code guarantees that
@@ -56,7 +56,7 @@ type Block interface {
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
 //
-// [snowman.Block]: http://facebook.com
+// [snowman.Block]: https://github.com/ava-labs/avalanchego/blob/master/snow/consensus/snowman/block.go#L24
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I
 	Output   O
@@ -67,6 +67,7 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }
 
+// NewInputBlock creates a new unverified but parsed StatefulBlock
 func NewInputBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -77,6 +78,10 @@ func NewInputBlock[I Block, O Block, A Block](
 	}
 }
 
+// NewVerifiedBlock creates a StatefulBlock after a block has been built and verified but not accepted/rejected by consensus.
+// The returned StatefulBlock is marked as verified, indicating that
+// consensus can proceed to accept/reject without re-running verification logic
+// The output (O) contains state transitions
 func NewVerifiedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -90,6 +95,7 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 	}
 }
 
+// NewAcceptedBlock creates a new StatefulBlock accepted by consensus and committed to the chain
 func NewAcceptedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -292,7 +298,16 @@ func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
-// implements "snowman.Block.choices.Decidable"
+// Accept implements the snowman.Block.choices.[Decidable] interface.
+// It marks this block as accepted by consensus
+// If the VM is ready, it ensures the block is verified and then calls markAccepted with its parent to process state transitions.
+//
+// If the VM is not ready (during state sync),
+// it deletes it from [verifiedBlocks], sets the last accepted block to this block, and notifies subscribers.
+// We are guaranteed that the block will eventually be accepted by consensus.
+//
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/master/snow/decidable.go#L16
+// [verifiedBlocks]: https://github.com/ava-labs/hypersdk/blob/ae9fa6b6d94634063ce0c717fca86fd71f3cf629/snow/vm.go#L130
 func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.chainLock.Lock()
 	defer b.vm.chainLock.Unlock()
@@ -330,7 +345,10 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	return b.markAccepted(ctx, parent)
 }
 
-// implements "snowman.Block.choices.Decidable"
+// Reject implements the snowman.Block.choices.[Decidable] interface.
+// It notifies subscribers that consensus rejected the block.
+//
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/master/snow/decidable.go#L16
 func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")
 	defer span.End()

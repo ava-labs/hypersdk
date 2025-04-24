@@ -116,6 +116,7 @@ type ConsensusIndex[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }
 
+// GetBlockByHeight retrieves the block at the specified height
 func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := c.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
@@ -124,6 +125,7 @@ func (c *ConsensusIndex[I, O, A]) GetBlockByHeight(ctx context.Context, height u
 	return blk.Input, nil
 }
 
+// GetBlock fetches the input block of the given block ID
 func (c *ConsensusIndex[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := c.vm.GetBlock(ctx, blkID)
 	if err != nil {

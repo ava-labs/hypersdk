@@ -164,7 +164,13 @@ type VM[Input Block, Output Block, Accepted Block] struct {
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
-	verifiedL      sync.RWMutex
+	verifiedL sync.RWMutex
+
+	// verifiedBlocks maintains a map of blocks that have passed verification but haven't yet been
+	// accepted or rejected by consensus. It serves multiple critical purposes:
+	// 1. Caches verified blocks
+	// 2. Tracks blocks vacuously verified during dynamic state sync that need verifyProcessingBlocks after FinishStateSync
+	// The map is protected by verifiedL to ensure thread-safety
 	verifiedBlocks map[ids.ID]*StatefulBlock[Input, Output, Accepted]
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
