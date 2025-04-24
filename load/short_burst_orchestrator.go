@@ -14,7 +14,7 @@ import (
 var (
 	ErrMismatchedGeneratorsAndIssuers = errors.New("number of generators and issuers must match")
 
-	_ Orchestrator = (*ShortBurstOrchestrator[any])(nil)
+	_ orchestrator = (*ShortBurstOrchestrator[any])(nil)
 )
 
 type ShortBurstOrchestratorConfig struct {

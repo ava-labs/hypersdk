@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	_ Orchestrator = (*GradualLoadOrchestrator[any, any])(nil)
+	_ orchestrator = (*GradualLoadOrchestrator[any, any])(nil)
 
 	ErrFailedToReachTargetTPS = errors.New("failed to reach target TPS")
 )
