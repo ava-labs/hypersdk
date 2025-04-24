@@ -52,25 +52,11 @@ import (
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
-// VM[I, O, A] Type:
-//
-// Core adapter implementing [snow.Chain] interface:
-//   - Manages verified blocks waiting for acceptance
-//   - Provides block caching and retrieval
-//   - Tracks last accepted block and preferences
-//   - Supports state synchronization
-//   - Handles metrics, health checks, and lifecycle management
-//
-// ConsensusIndex[I, O, A] Type:
-//
-// Provides access to consensus state:
-//   - Retrieves blocks by ID or height
-//   - Accesses preferred block's output state
-//   - Gets last accepted block's state
-//
-
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
+// ChainInput contains all external dependencies and configuration needed to
+// initialize a Chain. It provides access to consensus context, network communication,
+// initialization data (genesis/upgrade), tracing, and configuration.
 type ChainInput struct {
 	SnowCtx                    *snow.Context
 	GenesisBytes, UpgradeBytes []byte
@@ -123,6 +109,11 @@ type namedCloser struct {
 	close func() error
 }
 
+// VM implements the AvalancheGo common.VM interface by wrapping a custom Chain implementation.
+// It manages the block lifecycle (parsing, verification, acceptance), handles consensus
+// integration, maintains caching layers, and provides state synchronization by implementing block.StateSyncableVM.
+// This design allows developers to focus on application logic while the VM handles
+// consensus complexities.
 type VM[Input Block, Output Block, Accepted Block] struct {
 	handlers        map[string]http.Handler
 	network         *p2p.Network
@@ -191,6 +182,10 @@ type VM[Input Block, Output Block, Accepted Block] struct {
 	healthCheckers sync.Map
 }
 
+// NewVM creates a VM adapter that wraps a custom Chain implementation.
+// This allows blockchain developers to focus on application-specific logic
+// through the Chain interface while the snow package handles all
+// consensus engine integration and complexity.
 func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
 		handlers: make(map[string]http.Handler),
@@ -199,6 +194,10 @@ func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[
 	}
 }
 
+// Initialize initializes the chain, optionally configures the VM via app, and returns
+// a persistent index of the chain's input block type, the last output and accetped block,
+// and whether or not the VM is currently in a valid state. If stateReady is false, the VM
+// must be mid-state sync, such that it does not have a valid last output or accepted block.
 func (v *VM[I, O, A]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
@@ -324,6 +323,12 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
 
+// GetBlock retrieves a block by its ID following a specific lookup hierarchy:
+// 1. First checks the verified blocks map
+// 2. Then looks in the accepted blocks cache for recently accepted blocks
+// 3. Finally falls back to retrieving from persistent storage if needed
+// The returned StatefulBlock will have the appropriate state fields populated
+// based on where it was found in the hierarchy.
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
@@ -351,6 +356,8 @@ func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return NewInputBlock(v, blk), nil
 }
 
+// GetBlockByHeight attempts to retrieve an accepted block by height from the accepted blocks cache.
+// Fallbacks to GetBlock
 func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockByHeight")
 	defer span.End()
@@ -376,6 +383,7 @@ func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*Sta
 	return v.GetBlock(ctx, blkID)
 }
 
+// ParseBlock parses a block from bytes and returns a NewInputBlock
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
@@ -401,10 +409,16 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBl
 	return blk, nil
 }
 
+// BuildBlockWithContext attempts to BuildBlock with block.Context
 func (v *VM[I, O, A]) BuildBlockWithContext(ctx context.Context, blockCtx *block.Context) (*StatefulBlock[I, O, A], error) {
 	return v.buildBlock(ctx, blockCtx)
 }
 
+// BuildBlock constructs a new block on top of the current preferred tip of the chain.
+// It assembles and executes transactions from the mempool against the parent state,
+// creating a fully verified StatefulBlock ready for consensus. Verification happens
+// during construction, making the block immediately proposable regardless of the
+// node's role as validator or producer.
 func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
 	return v.buildBlock(ctx, nil)
 }
@@ -435,10 +449,12 @@ func (v *VM[I, O, A]) buildBlock(ctx context.Context, blockCtx *block.Context) (
 	return sb, nil
 }
 
+// LastAcceptedBlock returns the last accepted block
 func (v *VM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
 	return v.lastAcceptedBlock
 }
 
+// GetBlockIDAtHeight returns the ID of the block at the given height
 func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
 	defer span.End()
@@ -452,6 +468,7 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
+// SetPreference updates the VM's preferred block ID based on the consensus engine's decision.
 func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	v.metaLock.Lock()
 	defer v.metaLock.Unlock()
@@ -460,10 +477,12 @@ func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	return nil
 }
 
+// LastAccepted returns ID of the last accepted block
 func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
 	return v.lastAcceptedBlock.ID(), nil
 }
 
+// SetState sets the state of the VM
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	v.log.Info("Setting state to %s", zap.Stringer("state", state))
 	switch state {
@@ -493,10 +512,13 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	}
 }
 
+// CreateHandlers returns a map of HTTP handlers for the VM that can be used to interact with it over HTTP.
+// CreateHandlers is a core implementation of common.VM
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return v.handlers, nil
 }
 
+// Shutdown shuts down the VM
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	v.log.Info("Shutting down VM")
 	close(v.shutdownChan)
@@ -511,6 +533,7 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
+// Version returns the version of the VM
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {
 	return v.version, nil
 }
@@ -519,48 +542,64 @@ func (v *VM[I, O, A]) addCloser(name string, closer func() error) {
 	v.closers = append(v.closers, namedCloser{name, closer})
 }
 
+// GetInputCovariantVM returns *InputCovariantVM[I, O, A]
 func (v *VM[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
 	return &InputCovariantVM[I, O, A]{vm: v}
 }
 
+// GetNetwork returns *p2p.Network
 func (v *VM[I, O, A]) GetNetwork() *p2p.Network {
 	return v.network
 }
 
+// AddAcceptedSub adds subscriotions tracking accepted blocks
 func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
 	v.acceptedSubs = append(v.acceptedSubs, sub...)
 }
 
+// AddRejectedSub adds subscriptions tracking rejected blocks
 func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
 	v.rejectedSubs = append(v.rejectedSubs, sub...)
 }
 
+// AddVerifiedSub adds subscriptions tracking verified blocks
 func (v *VM[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
 	v.verifiedSubs = append(v.verifiedSubs, sub...)
 }
 
+// AddPreReadyAcceptedSub adds subscriptions tracking accepted blocks during state sync
+// before the VM had the state to verify them
 func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	v.preReadyAcceptedSubs = append(v.preReadyAcceptedSubs, sub...)
 }
 
-// AddPreRejectedSub adds subscriptions tracking rejected blocks that were
-// vacuously verified during state sync before the VM had the state to verify them
+// AddPreRejectedSub adds subscriptions tracking accepted blocks during state sync
+// before the VM had the state to verify them
 func (v *VM[I, O, A]) AddPreRejectedSub(sub ...event.Subscription[I]) {
 	v.preRejectedSubs = append(v.preRejectedSubs, sub...)
 }
 
+// AddHandler adds a handler to the VM's http server.
 func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
 	v.handlers[name] = handler
 }
 
+// AddCloser adds a function called when the VM is shutting down
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
 	v.addCloser(name, closer)
 }
 
+// AddStateSyncStarter adds a function called when the VM transitions to the state sync state
 func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
 	v.onStateSyncStarted = append(v.onStateSyncStarted, onStateSyncStarted...)
 }
 
+// AddBootstrapStarter adds a function called when the VM transitions to the bootstrap state
+func (v *VM[I, O, A]) AddBootstrapStarter(onBootstrapStartedF ...func(context.Context) error) {
+	v.onBootstrapStarted = append(v.onBootstrapStarted, onBootstrapStartedF...)
+}
+
+// AddNormalOpStarter adds a function called when the VM transitions to the normal operation state
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
 	v.onNormalOperationsStarted = append(v.onNormalOperationsStarted, onNormalOpStartedF...)
 }

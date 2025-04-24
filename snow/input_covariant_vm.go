@@ -16,6 +16,7 @@ type InputCovariantVM[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }
 
+// GetBlock returns VM.GetBlock and returns the input block type
 func (v *InputCovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (I, error) {
 	blk, err := v.vm.GetBlock(ctx, blkID)
 	if err != nil {
@@ -25,6 +26,7 @@ func (v *InputCovariantVM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) 
 	return blk.Input, nil
 }
 
+// GetBlockByHeight returns VM.GetBlockByHeight and returns the input block type
 func (v *InputCovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (I, error) {
 	blk, err := v.vm.GetBlockByHeight(ctx, height)
 	if err != nil {
@@ -34,6 +36,7 @@ func (v *InputCovariantVM[I, O, A]) GetBlockByHeight(ctx context.Context, height
 	return blk.Input, nil
 }
 
+// ParseBlock returns VM.ParseBlock and returns the input block type
 func (v *InputCovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (I, error) {
 	blk, err := v.vm.ParseBlock(ctx, bytes)
 	if err != nil {
@@ -43,6 +46,7 @@ func (v *InputCovariantVM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte
 	return blk.Input, nil
 }
 
+// LastAcceptedBlock returns VM.LastAcceptedBlock and returns the input block type
 func (v *InputCovariantVM[I, O, A]) LastAcceptedBlock(ctx context.Context) I {
 	return v.vm.LastAcceptedBlock(ctx).Input
 }

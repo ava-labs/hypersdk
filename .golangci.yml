@@ -194,7 +194,6 @@ linters:
             - "**/proto/**/*.go"
             - "**/pubsub/**/*.go"
             - "**/requester/**/*.go"
-            - "**/snow/**/*.go"
             - "**/state/**/*.go"
             - "**/statesync/**/*.go"
             - "**/storage/**/*.go"

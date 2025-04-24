@@ -27,19 +27,31 @@ var (
 	errMismatchedPChainContext  = errors.New("mismatched P-Chain context")
 )
 
+// Block is a union of methods required by [snowman.Block] and [block.WithVerifyContext]
 type Block interface {
-	fmt.Stringer
+	// GetID returns the ID of the block
 	GetID() ids.ID
+
+	// GetParent returns the ID of the parent block
 	GetParent() ids.ID
+
+	// GetTimestamp returns the timestamp of the block
 	GetTimestamp() int64
+
+	// GetBytes returns the bytes of the block
 	GetBytes() []byte
+
+	// GetHeight returns the height of the block
 	GetHeight() uint64
+
 	// GetContext returns the P-Chain context of the block.
 	// May return nil if there is no P-Chain context, which
 	// should only occur prior to ProposerVM activation.
 	// This will be verified from the snow package, so that the
 	// inner chain can simply use its embedded context.
 	GetContext() *block.Context
+
+	fmt.Stringer
 }
 
 // StatefulBlock implements [snowman.Block] it abstracts caching and block pinning required by the AvalancheGo Consensus engine.
@@ -143,14 +155,18 @@ func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) e
 	return nil
 }
 
+// ShouldVerifyWithContext returns true if the block should be verified with the provided context.
+// Always returns true
 func (*StatefulBlock[I, O, A]) ShouldVerifyWithContext(context.Context) (bool, error) {
 	return true, nil
 }
 
+// VerifyWithContext verifies the block with P-Chain context
 func (b *StatefulBlock[I, O, A]) VerifyWithContext(ctx context.Context, pChainCtx *block.Context) error {
 	return b.verifyWithContext(ctx, pChainCtx)
 }
 
+// Verify block
 func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	return b.verifyWithContext(ctx, nil)
 }
@@ -365,21 +381,37 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
 }
 
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) ID() ids.ID           { return b.Input.GetID() }
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID       { return b.Input.GetParent() }
-func (b *StatefulBlock[I, O, A]) Height() uint64       { return b.Input.GetHeight() }
+// ID returns id of Input block
+func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.GetID() }
+
+// Parent returns parent ID of Input block
+func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.GetParent() }
+
+// Height returns height of Input block
+func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.GetHeight() }
+
+// Timestamp returns timestamp in milliseconds of the Input block
 func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.GetTimestamp()) }
-func (b *StatefulBlock[I, O, A]) Bytes() []byte        { return b.Input.GetBytes() }
 
-// Implements GetXXX for internal consistency
-func (b *StatefulBlock[I, O, A]) GetID() ids.ID       { return b.Input.GetID() }
-func (b *StatefulBlock[I, O, A]) GetParent() ids.ID   { return b.Input.GetParent() }
-func (b *StatefulBlock[I, O, A]) GetHeight() uint64   { return b.Input.GetHeight() }
+// Bytes return the serialized bytes of the Input block
+func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.GetBytes() }
+
+// GetID returns id of Input block
+func (b *StatefulBlock[I, O, A]) GetID() ids.ID { return b.Input.GetID() }
+
+// GetParent returns parent ID of Input block
+func (b *StatefulBlock[I, O, A]) GetParent() ids.ID { return b.Input.GetParent() }
+
+// GetHeight returns height of Input block
+func (b *StatefulBlock[I, O, A]) GetHeight() uint64 { return b.Input.GetHeight() }
+
+// GetTimestamp returns timestamp in milliseconds of the Input block
 func (b *StatefulBlock[I, O, A]) GetTimestamp() int64 { return b.Input.GetTimestamp() }
-func (b *StatefulBlock[I, O, A]) GetBytes() []byte    { return b.Input.GetBytes() }
 
-// implements "fmt.Stringer"
+// GetBytes return the serialized bytes of the Input block
+func (b *StatefulBlock[I, O, A]) GetBytes() []byte { return b.Input.GetBytes() }
+
+// String implements [fmt.Stringer]
 func (b *StatefulBlock[I, O, A]) String() string {
 	return fmt.Sprintf("(%s, verified = %t, accepted = %t)", b.Input, b.verified, b.accepted)
 }

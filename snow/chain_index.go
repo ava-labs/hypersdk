@@ -18,11 +18,28 @@ import (
 // The VM provides a caching layer on top of ChainIndex, so the implementation
 // does not need to provide its own caching layer.
 type ChainIndex[T Block] interface {
+	// UpdateLastAccepted updates the chain's last accepted block record and manages block storage.
+	// It:
+	// 1. Persists the new last accepted block
+	// 2. Maintains cross-reference indices between block IDs and heights
+	// 3. Prunes old blocks beyond the retention window
+	// 4. Periodically triggers database compaction to reclaim space
+	// This function is called whenever a block is accepted by consensus
 	UpdateLastAccepted(ctx context.Context, blk T) error
+
+	// GetLastAcceptedHeight returns the height of the last accepted block
 	GetLastAcceptedHeight(ctx context.Context) (uint64, error)
+
+	// GetBlock returns the block with the given ID
 	GetBlock(ctx context.Context, blkID ids.ID) (T, error)
+
+	// GetBlockIDAtHeight returns the ID of the block at the given height
 	GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error)
+
+	// GetBlockIDHeight returns the height of the block with the given ID
 	GetBlockIDHeight(ctx context.Context, blkID ids.ID) (uint64, error)
+
+	// GetBlockByHeight returns the block at the given height
 	GetBlockByHeight(ctx context.Context, blkHeight uint64) (T, error)
 }
 

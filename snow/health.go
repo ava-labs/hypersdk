@@ -24,6 +24,12 @@ var (
 	errVMNotReady       = errors.New("vm not ready")
 )
 
+// HealthCheck is a concrete implementation of health.Checker interface
+// that reports the health and readiness of the VM.
+//
+// The health and readiness of the VM is determined by the health checkers registered with the VM.
+//
+// The health checkers are registered with the VM using RegisterHealthChecker.
 func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (any, error) {
 	var (
 		details = make(map[string]any)
@@ -43,6 +49,7 @@ func (v *VM[I, O, A]) HealthCheck(ctx context.Context) (any, error) {
 	return details, errors.Join(errs...)
 }
 
+// RegisterHealthChecker registers a health checker with the VM
 func (v *VM[I, O, A]) RegisterHealthChecker(name string, healthChecker health.Checker) error {
 	if _, ok := v.healthCheckers.LoadOrStore(name, healthChecker); ok {
 		return fmt.Errorf("duplicate health checker for %s", name)
