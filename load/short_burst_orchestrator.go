@@ -28,9 +28,6 @@ type ShortBurstOrchestrator[T comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]
 
-	issuerGroup   errgroup.Group
-	observerGroup errgroup.Group
-
 	config ShortBurstOrchestratorConfig
 }
 
@@ -56,14 +53,16 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 	defer observerCancel()
 
 	// start a goroutine to confirm each issuer's transactions
+	observerGroup := errgroup.Group{}
 	for _, issuer := range o.issuers {
-		o.observerGroup.Go(func() error { return issuer.Listen(observerCtx) })
+		observerGroup.Go(func() error { return issuer.Listen(observerCtx) })
 	}
 
 	// start issuing transactions sequentially from each issuer
+	issuerGroup := errgroup.Group{}
 	for i, issuer := range o.issuers {
 		generator := o.generators[i]
-		o.issuerGroup.Go(func() error {
+		issuerGroup.Go(func() error {
 			defer issuer.Stop()
 
 			for range o.config.TxsPerIssuer {
@@ -80,7 +79,7 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 	}
 
 	// wait for all issuers to finish sending their transactions
-	if err := o.issuerGroup.Wait(); err != nil {
+	if err := issuerGroup.Wait(); err != nil {
 		return err
 	}
 
@@ -96,5 +95,5 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 
 	// blocks until either all of the issuers have finished or our context
 	// is cancelled signalling for early termination (with an error)
-	return o.observerGroup.Wait()
+	return observerGroup.Wait()
 }
