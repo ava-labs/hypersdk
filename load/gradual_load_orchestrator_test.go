@@ -13,12 +13,13 @@ import (
 	"github.com/ava-labs/avalanchego/utils/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ava-labs/hypersdk/consts"
 )
 
 var (
 	_ TxGenerator[ids.ID] = (*mockTxGenerator)(nil)
 	_ Issuer[ids.ID]      = (*mockIssuer)(nil)
-	_ Tracker[any]        = (*mockTracker)(nil)
 )
 
 func TestGradualLoadOrchestratorTPS(t *testing.T) {
@@ -30,12 +31,12 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	}{
 		{
 			name:      "orchestrator achieves max TPS",
-			serverTPS: 3_000,
+			serverTPS: consts.MaxUint64,
 			config: GradualLoadOrchestratorConfig{
 				MaxTPS:           2_000,
 				MinTPS:           1_000,
 				Step:             1_000,
-				TxRateMultiplier: 1.3,
+				TxRateMultiplier: 1.5,
 				SustainedTime:    time.Second,
 				MaxAttempts:      2,
 				Terminate:        true,
@@ -43,7 +44,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 		},
 		{
 			name:      "orchestrator TPS limited by network",
-			serverTPS: 1_500,
+			serverTPS: 1_000,
 			config: GradualLoadOrchestratorConfig{
 				MaxTPS:           2_000,
 				MinTPS:           1_000,
@@ -63,20 +64,23 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
+			r.NoError(err)
+
 			orchestrator, err := NewGradualLoadOrchestrator(
 				[]TxGenerator[ids.ID]{&mockTxGenerator{
 					generateTxF: func() (ids.ID, error) {
 						return ids.GenerateTestID(), nil
 					},
 				}},
-				[]Issuer[ids.ID]{&mockIssuer{}},
-				newMockTracker(tt.serverTPS, tt.config.SustainedTime),
+				[]Issuer[ids.ID]{newMockIssuer(tracker, tt.serverTPS)},
+				tracker,
 				logging.NoLog{},
 				tt.config,
 			)
 			r.NoError(err)
 
-			r.ErrorIs(orchestrator.Execute(ctx), tt.expectedErr, "got %v TPS", orchestrator.GetMaxObservedTPS())
+			r.ErrorIs(orchestrator.Execute(ctx), tt.expectedErr)
 
 			if tt.expectedErr == nil {
 				r.GreaterOrEqual(orchestrator.GetMaxObservedTPS(), tt.config.MaxTPS)
@@ -188,45 +192,6 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 	}
 }
 
-type mockTracker struct {
-	observedConfirmed uint64
-	tps               uint64
-	sustainedTime     time.Duration
-}
-
-func newMockTracker(tps uint64, sustainedTime time.Duration) *mockTracker {
-	return &mockTracker{
-		tps:           tps,
-		sustainedTime: sustainedTime,
-	}
-}
-
-// GetObservedConfirmed returns the number of confirmed transactions observed
-//
-// The gradual load orchestrator calls GetObservedConfirmed every sustainedTime
-// seconds to compute the TPS. The mockTracker simulates this by returning a
-// counter (observedConfirmed) and incrementing that counter by the number of
-// txs it is expected to observe in the next sustainedTime seconds.
-func (m *mockTracker) GetObservedConfirmed() uint64 {
-	oc := m.observedConfirmed
-	m.observedConfirmed += (m.tps * uint64(m.sustainedTime.Seconds()))
-	return oc
-}
-
-func (*mockTracker) GetObservedFailed() uint64 {
-	return 0
-}
-
-func (*mockTracker) GetObservedIssued() uint64 {
-	return 0
-}
-
-func (*mockTracker) Issue(any) {}
-
-func (*mockTracker) ObserveConfirmed(any) {}
-
-func (*mockTracker) ObserveFailed(any) {}
-
 type mockTxGenerator struct {
 	generateTxF func() (ids.ID, error)
 }
@@ -236,11 +201,34 @@ func (m *mockTxGenerator) GenerateTx(context.Context) (ids.ID, error) {
 }
 
 type mockIssuer struct {
-	issueTxErr error
+	currTxsIssued uint64
+	maxTxs        uint64
+	tracker       Tracker[ids.ID]
+	issueTxErr    error
 }
 
-func (m *mockIssuer) IssueTx(context.Context, ids.ID) error {
-	return m.issueTxErr
+func newMockIssuer(tracker Tracker[ids.ID], maxTxs uint64) *mockIssuer {
+	return &mockIssuer{
+		tracker: tracker,
+		maxTxs:  maxTxs,
+	}
+}
+
+// IssueTx immediately issues and confirms a tx
+// To simulate TPS, the number of txs IssueTx can issue/confirm is capped by maxTxs
+func (m *mockIssuer) IssueTx(_ context.Context, id ids.ID) error {
+	if m.issueTxErr != nil {
+		return m.issueTxErr
+	}
+
+	if m.currTxsIssued >= m.maxTxs {
+		return nil
+	}
+
+	m.tracker.Issue(id)
+	m.tracker.ObserveConfirmed(id)
+	m.currTxsIssued++
+	return nil
 }
 
 func (*mockIssuer) Listen(context.Context) error {
