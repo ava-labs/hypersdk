@@ -87,10 +87,7 @@ func (v *vmReadinessHealthCheck) HealthCheck(_ context.Context) (any, error) {
 //
 // During state sync, blocks are vacuously marked as verified because the VM lacks the state required
 // to properly verify them. When state sync completes, these blocks must go through proper verification,
-// but some may fail for legitimate reasons:
-//  1. Some blocks might fail verification rules
-//  2. Some blocks might be orphaned (their parent failed verification)
-//  3. Some might conflict with the canonical chain
+// but some may fail.
 //
 // This health check ensures chain integrity by tracking these blocks until they're explicitly
 // rejected by consensus. Without such tracking:
