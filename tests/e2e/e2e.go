@@ -238,7 +238,6 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		orchestrator, err := load.NewShortBurstOrchestrator(
 			txGenerators,
 			issuers,
-			tracker,
 			shortBurstConfig,
 		)
 		require.NoError(err)

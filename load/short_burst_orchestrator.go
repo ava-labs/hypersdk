@@ -14,7 +14,7 @@ import (
 var (
 	ErrMismatchedGeneratorsAndIssuers = errors.New("number of generators and issuers must match")
 
-	_ Orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
+	_ Orchestrator = (*ShortBurstOrchestrator[any])(nil)
 )
 
 type ShortBurstOrchestratorConfig struct {
@@ -24,10 +24,9 @@ type ShortBurstOrchestratorConfig struct {
 
 // ShortBurstOrchestrator tests the network by sending a fixed number of
 // transactions en masse in a short timeframe.
-type ShortBurstOrchestrator[T, U comparable] struct {
+type ShortBurstOrchestrator[T comparable] struct {
 	generators []TxGenerator[T]
 	issuers    []Issuer[T]
-	tracker    Tracker[U]
 
 	issuerGroup   errgroup.Group
 	observerGroup errgroup.Group
@@ -35,26 +34,24 @@ type ShortBurstOrchestrator[T, U comparable] struct {
 	config ShortBurstOrchestratorConfig
 }
 
-func NewShortBurstOrchestrator[T, U comparable](
+func NewShortBurstOrchestrator[T comparable](
 	txGenerators []TxGenerator[T],
 	issuers []Issuer[T],
-	tracker Tracker[U],
 	config ShortBurstOrchestratorConfig,
-) (*ShortBurstOrchestrator[T, U], error) {
+) (*ShortBurstOrchestrator[T], error) {
 	if len(txGenerators) != len(issuers) {
 		return nil, ErrMismatchedGeneratorsAndIssuers
 	}
-	return &ShortBurstOrchestrator[T, U]{
+	return &ShortBurstOrchestrator[T]{
 		generators: txGenerators,
 		issuers:    issuers,
-		tracker:    tracker,
 		config:     config,
 	}, nil
 }
 
 // Execute orders issuers to send a fixed number of transactions and then waits
 // for all of their statuses to be confirmed or for a timeout to occur.
-func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
+func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 	observerCtx, observerCancel := context.WithCancel(ctx)
 	defer observerCancel()
 
