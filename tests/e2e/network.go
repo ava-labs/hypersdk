@@ -66,7 +66,7 @@ func (n *Network) URIs() []string {
 	return uris
 }
 
-func (n *Network) getRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
+func (n *Network) GetRuleFactory(ctx context.Context) (chain.RuleFactory, error) {
 	if n.ruleFactory != nil {
 		return n.ruleFactory, nil
 	}
@@ -138,12 +138,12 @@ func (n *Network) GenerateTx(ctx context.Context, actions []chain.Action, auth c
 	if err != nil {
 		return nil, err
 	}
-	ruleFactory, err := n.getRuleFactory(ctx)
+	ruleFactory, err := n.GetRuleFactory(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	return chain.GenerateTransaction(ruleFactory, unitPrices, actions, auth)
+	return chain.GenerateTransaction(ruleFactory, unitPrices, time.Now().UnixMilli(), actions, auth)
 }
 
 func (*Network) Configuration() workload.TestNetworkConfiguration {

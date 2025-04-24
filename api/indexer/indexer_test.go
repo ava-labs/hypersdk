@@ -27,7 +27,7 @@ func createTestIndexer(
 	indexer, err := NewIndexer(tempDir, chaintest.NewTestParser(), uint64(blockWindow))
 	r.NoError(err)
 
-	executedBlocks = chaintest.GenerateTestExecutedBlocks(
+	executedBlocks = chaintest.GenerateEmptyExecutedBlocks(
 		r,
 		ids.GenerateTestID(),
 		ids.GenerateTestID(),
