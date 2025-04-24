@@ -242,7 +242,7 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 				currTime := time.Now()
 				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
 				for range txsPerIssuer {
-					tx, err := o.generators[i].GenerateTx(ctx)
+					tx, err := o.generators[i].GenerateTx()
 					if err != nil {
 						return err
 					}

@@ -9,7 +9,7 @@ import (
 
 type TxGenerator[T comparable] interface {
 	// GenerateTx returns a valid transaction.
-	GenerateTx(ctx context.Context) (T, error)
+	GenerateTx() (T, error)
 }
 
 type Issuer[T comparable] interface {

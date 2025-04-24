@@ -4,7 +4,6 @@
 package load
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"time"
@@ -42,7 +41,7 @@ func NewTxGenerator(
 	}
 }
 
-func (t *TxGenerator) GenerateTx(context.Context) (*chain.Transaction, error) {
+func (t *TxGenerator) GenerateTx() (*chain.Transaction, error) {
 	tx, err := chain.GenerateTransaction(
 		t.ruleFactory,
 		t.unitPrices,

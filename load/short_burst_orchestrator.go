@@ -67,7 +67,7 @@ func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
 			defer issuer.Stop()
 
 			for range o.config.TxsPerIssuer {
-				tx, err := generator.GenerateTx(ctx)
+				tx, err := generator.GenerateTx()
 				if err != nil {
 					return err
 				}

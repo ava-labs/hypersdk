@@ -196,7 +196,7 @@ type mockTxGenerator struct {
 	generateTxF func() (ids.ID, error)
 }
 
-func (m *mockTxGenerator) GenerateTx(context.Context) (ids.ID, error) {
+func (m *mockTxGenerator) GenerateTx() (ids.ID, error) {
 	return m.generateTxF()
 }
 
