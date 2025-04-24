@@ -16,6 +16,7 @@ type Issuer[T comparable] interface {
 	// Listen for the final status of transactions and notify the tracker
 	// Listen stops if the context is done, an error occurs, or if the issuer
 	// has sent all their transactions.
+	// Listen MUST return a nil error if the context is canceled.
 	Listen(ctx context.Context) error
 
 	// Stop notifies the issuer that no further transactions will be issued.
