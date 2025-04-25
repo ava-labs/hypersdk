@@ -552,7 +552,7 @@ func (v *VM[I, O, A]) GetNetwork() *p2p.Network {
 	return v.network
 }
 
-// AddAcceptedSub adds subscriotions tracking accepted blocks
+// AddAcceptedSub adds subscriptions tracking accepted blocks
 func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
 	v.acceptedSubs = append(v.acceptedSubs, sub...)
 }

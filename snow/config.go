@@ -47,7 +47,7 @@ func GetProfilerConfig(config context.Config) (profiler.Config, error) {
 	return context.GetConfig(config, ContinuousProfilerKey, profiler.Config{Enabled: false})
 }
 
-// GetTracerConfig returns the [trace.Config]. If the config does not contain a trace.Config,
+// GetTracerConfig returns the trace.Config. If the config does not contain a trace.Config,
 // it disables tracing.
 func GetTracerConfig(config context.Config) (trace.Config, error) {
 	return context.GetConfig(config, TracerConfigKey, trace.Config{Enabled: false})

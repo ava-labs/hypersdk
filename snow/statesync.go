@@ -152,12 +152,12 @@ func (v *VM[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSumma
 	return v.stateSyncableVM.GetLastStateSummary(ctx)
 }
 
-// ParseStateSummary parses a state summary from bytes
+// ParseStateSummary parses a state summary from summaryBytes
 func (v *VM[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
 	return v.stateSyncableVM.ParseStateSummary(ctx, summaryBytes)
 }
 
-// GetStateSummary retrieves the state summary that was generated at height
+// GetStateSummary retrieves the state summary generated at summaryHeight
 func (v *VM[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
 	return v.stateSyncableVM.GetStateSummary(ctx, summaryHeight)
 }

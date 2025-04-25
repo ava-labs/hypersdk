@@ -27,7 +27,7 @@ var (
 	errMismatchedPChainContext  = errors.New("mismatched P-Chain context")
 )
 
-// Block is a union of methods required by [snowman.Block] and [block.WithVerifyContext]
+// Block is a union of methods required by snowman.Block and block.WithVerifyContext
 type Block interface {
 	// GetID returns the ID of the block
 	GetID() ids.ID
@@ -54,7 +54,8 @@ type Block interface {
 	fmt.Stringer
 }
 
-// StatefulBlock implements snowman.Block it abstracts caching and block pinning required by the AvalancheGo Consensus engine.
+// StatefulBlock implements snowman.Block.
+// It abstracts caching and block pinning required by the AvalancheGo Consensus engine.
 // This converts the VM DevX from implementing the consensus engine-specific invariants
 // to implementing an input/output/accepted block type and handling the state transitions
 // between these types.
@@ -68,7 +69,7 @@ type Block interface {
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
 //
-// [snowman.Block]: https://github.com/ava-labs/avalanchego/blob/master/snow/consensus/snowman/block.go#L24
+// [snowman.Block]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/consensus/snowman/block.go#L24
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I
 	Output   O
@@ -79,7 +80,13 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }
 
-// NewInputBlock creates a new unverified StatefulBlock
+// NewInputBlock creates a new unverified StatefulBlock.
+//
+// Returns:
+//   - A new StatefulBlock containing only the input block
+//
+// This function emulates the initial state of a block that has been built
+// but not verified
 func NewInputBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -91,7 +98,12 @@ func NewInputBlock[I Block, O Block, A Block](
 }
 
 // NewVerifiedBlock creates a StatefulBlock after a block has been built and verified but prior to being accepted/rejected by consensus.
-// The output (O) contains state transitions
+//
+// Returns:
+//   - A new verified StatefulBlock containing the input block, output block with state transitions
+//
+// This function emulates the state of a block that has passed verification
+// but has not yet been accepted into the blockchain by consensus
 func NewVerifiedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -105,7 +117,14 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 	}
 }
 
-// NewAcceptedBlock creates a new StatefulBlock accepted by consensus and committed to the chain
+// NewAcceptedBlock creates a new StatefulBlock accepted by consensus and committed to the chain.
+//
+// Returns:
+//   - A new StatefulBlock containing the input block, output block, accepted block, and both verification
+//     and acceptance status set to true.
+//
+// This function emulates the final state of a block that has been fully processed, verified,
+// and accepted into the blockchain by the consensus mechanism.
 func NewAcceptedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -312,7 +331,7 @@ func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
-// Accept implements the snowman.Block.choices.[Decidable] interface.
+// Accept implements the snowman.Block.[Decidable] interface.
 // It marks this block as accepted by consensus
 // If the VM is ready, it ensures the block is verified and then calls markAccepted with its parent to process state transitions.
 //
@@ -320,8 +339,8 @@ func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 // it deletes it from [verifiedBlocks], sets the last accepted block to this block, and notifies subscribers.
 // We are guaranteed that the block will eventually be accepted by consensus.
 //
-// [Decidable]: https://github.com/ava-labs/avalanchego/blob/master/snow/decidable.go#L16
-// [verifiedBlocks]: https://github.com/ava-labs/hypersdk/blob/ae9fa6b6d94634063ce0c717fca86fd71f3cf629/snow/vm.go#L130
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/decidable.go#L16
+// [verifiedBlocks]: https://github.com/ava-labs/hypersdk/blob/ae0c960050860ad72468e5c3687966366582ba1a/snow/vm.go#L165
 func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.chainLock.Lock()
 	defer b.vm.chainLock.Unlock()
@@ -359,12 +378,12 @@ func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	return b.markAccepted(ctx, parent)
 }
 
-// Reject implements the snowman.Block.choices.[Decidable] interface.
+// Reject implements the snowman.Block.[Decidable] interface.
 // It removes the block from the verified blocks map (VM.verifiedBlocks) and notifies subscribers
 // that consensus rejected the block. For any particular block, either
 // Accept or Reject will be called, never both.
 //
-// [Decidable]: https://github.com/ava-labs/avalanchego/blob/master/snow/decidable.go#L16
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/decidable.go#L16
 func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")
 	defer span.End()
@@ -396,7 +415,7 @@ func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b
 // Bytes return the serialized bytes of the Input block
 func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.GetBytes() }
 
-// GetID returns id of Input block
+// GetID returns ID of Input block
 func (b *StatefulBlock[I, O, A]) GetID() ids.ID { return b.Input.GetID() }
 
 // GetParent returns parent ID of Input block
@@ -411,7 +430,7 @@ func (b *StatefulBlock[I, O, A]) GetTimestamp() int64 { return b.Input.GetTimest
 // GetBytes return the serialized bytes of the Input block
 func (b *StatefulBlock[I, O, A]) GetBytes() []byte { return b.Input.GetBytes() }
 
-// String implements [fmt.Stringer]
+// String implements fmt.Stringer
 func (b *StatefulBlock[I, O, A]) String() string {
 	return fmt.Sprintf("(%s, verified = %t, accepted = %t)", b.Input, b.verified, b.accepted)
 }
