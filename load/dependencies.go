@@ -14,8 +14,8 @@ type TxGenerator[T comparable] interface {
 
 type Issuer[T comparable] interface {
 	// Listen for the final status of transactions and notify the tracker
-	// Listen stops if the context is done, an error occurs, or if the issuer
-	// has sent all their transactions.
+	// Listen stops if the context is done, an error occurs, or if it received
+	// all the transactions issued and the issuer no longer issues any.
 	// Listen MUST return a nil error if the context is canceled.
 	Listen(ctx context.Context) error
 
