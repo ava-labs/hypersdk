@@ -67,9 +67,7 @@ func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 // the network can no longer make progress (i.e. the rate at the network accepts
 // transactions is less than currTargetTPS).
 type GradualLoadOrchestrator[T, U comparable] struct {
-	generators []TxGenerator[T]
-	issuers    []Issuer[T]
-	tracker    Tracker[U]
+	agents []Agent[T, U]
 
 	log logging.Logger
 
@@ -82,21 +80,14 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 }
 
 func NewGradualLoadOrchestrator[T, U comparable](
-	generators []TxGenerator[T],
-	issuers []Issuer[T],
-	tracker Tracker[U],
+	agents []Agent[T, U],
 	log logging.Logger,
 	config GradualLoadOrchestratorConfig,
 ) (*GradualLoadOrchestrator[T, U], error) {
-	if len(generators) != len(issuers) {
-		return nil, ErrMismatchedGeneratorsAndIssuers
-	}
 	return &GradualLoadOrchestrator[T, U]{
-		generators: generators,
-		issuers:    issuers,
-		tracker:    tracker,
-		log:        log,
-		config:     config,
+		agents: agents,
+		log:    log,
+		config: config,
 	}, nil
 }
 
@@ -104,8 +95,8 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 
 	// start a goroutine to confirm each issuer's transactions
-	for _, issuer := range o.issuers {
-		o.observerGroup.Go(func() error { return issuer.Listen(ctx) })
+	for _, agent := range o.agents {
+		o.observerGroup.Go(func() error { return agent.Issuer.Listen(ctx) })
 	}
 
 	// start the test and block until it's done
@@ -133,7 +124,7 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // 3. the maximum number of attempts to reach a target TPS has been reached
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 	var (
-		prevConfirmed        = o.tracker.GetObservedConfirmed()
+		prevConfirmed        = GetTotalObservedConfirmed(o.agents)
 		prevTime             = time.Now()
 		currTargetTPS        = new(atomic.Uint64)
 		attempts      uint64 = 1
@@ -159,7 +150,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 			break // Case 1
 		}
 
-		currConfirmed := o.tracker.GetObservedConfirmed()
+		currConfirmed := GetTotalObservedConfirmed(o.agents)
 		currTime := time.Now()
 
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))
@@ -233,20 +224,20 @@ func (o *GradualLoadOrchestrator[T, U]) GetMaxObservedTPS() uint64 {
 // start a goroutine to each issuer to continuously send transactions
 // if an issuer errors, all other issuers will stop as well.
 func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTargetTPS *atomic.Uint64) {
-	for i, issuer := range o.issuers {
+	for _, agent := range o.agents {
 		o.issuerGroup.Go(func() error {
 			for {
 				if ctx.Err() != nil {
 					return nil //nolint:nilerr
 				}
 				currTime := time.Now()
-				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.issuers))) * o.config.TxRateMultiplier)
+				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.agents))) * o.config.TxRateMultiplier)
 				for range txsPerIssuer {
-					tx, err := o.generators[i].GenerateTx()
+					tx, err := agent.Generator.GenerateTx()
 					if err != nil {
 						return err
 					}
-					if err := issuer.IssueTx(ctx, tx); err != nil {
+					if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 						return err
 					}
 				}

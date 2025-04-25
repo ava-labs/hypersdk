@@ -67,14 +67,20 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
 			r.NoError(err)
 
-			orchestrator, err := NewGradualLoadOrchestrator(
-				[]TxGenerator[ids.ID]{&mockTxGenerator{
-					generateTxF: func() (ids.ID, error) {
-						return ids.GenerateTestID(), nil
+			agents := []Agent[ids.ID, ids.ID]{
+				NewAgent(
+					&mockTxGenerator{
+						generateTxF: func() (ids.ID, error) {
+							return ids.GenerateTestID(), nil
+						},
 					},
-				}},
-				[]Issuer[ids.ID]{newMockIssuer(tracker, tt.serverTPS)},
-				tracker,
+					newMockIssuer(tracker, tt.serverTPS),
+					tracker,
+				),
+			}
+
+			orchestrator, err := NewGradualLoadOrchestrator(
+				agents,
 				logging.NoLog{},
 				tt.config,
 			)
@@ -91,43 +97,6 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	}
 }
 
-func TestGradualLoadOrchestratorConstructor(t *testing.T) {
-	tests := []struct {
-		name        string
-		issuers     []Issuer[ids.ID]
-		generators  []TxGenerator[ids.ID]
-		expectedErr error
-	}{
-		{
-			name:       "same number of issuers and generators",
-			issuers:    []Issuer[ids.ID]{&mockIssuer{}},
-			generators: []TxGenerator[ids.ID]{&mockTxGenerator{}},
-		},
-		{
-			name:        "different number of issuers and generators",
-			issuers:     []Issuer[ids.ID]{&mockIssuer{}, &mockIssuer{}},
-			generators:  []TxGenerator[ids.ID]{&mockTxGenerator{}},
-			expectedErr: ErrMismatchedGeneratorsAndIssuers,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := require.New(t)
-
-			_, err := NewGradualLoadOrchestrator[ids.ID, ids.ID](
-				tt.generators,
-				tt.issuers,
-				nil,
-				logging.NoLog{},
-				GradualLoadOrchestratorConfig{},
-			)
-
-			r.ErrorIs(err, tt.expectedErr)
-		})
-	}
-}
-
 // test that the orchestrator returns early if the txGenerators or the issuers error
 func TestGradualLoadOrchestratorExecution(t *testing.T) {
 	var (
@@ -135,36 +104,44 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 		errMockIssuer      = errors.New("mock issuer error")
 	)
 
+	tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
+	require.NoError(t, err, "creating tracker")
+
 	tests := []struct {
 		name        string
-		generators  []TxGenerator[ids.ID]
-		issuers     []Issuer[ids.ID]
+		agents      []Agent[ids.ID, ids.ID]
 		expectedErr error
 	}{
 		{
 			name: "generator error",
-			generators: []TxGenerator[ids.ID]{
-				&mockTxGenerator{
-					generateTxF: func() (ids.ID, error) {
-						return ids.Empty, errMockTxGenerator
+			agents: []Agent[ids.ID, ids.ID]{
+				NewAgent[ids.ID, ids.ID](
+					&mockTxGenerator{
+						generateTxF: func() (ids.ID, error) {
+							return ids.Empty, errMockTxGenerator
+						},
 					},
-				},
+					&mockIssuer{},
+					tracker,
+				),
 			},
-			issuers:     []Issuer[ids.ID]{&mockIssuer{}},
 			expectedErr: errMockTxGenerator,
 		},
 		{
 			name: "issuer error",
-			generators: []TxGenerator[ids.ID]{
-				&mockTxGenerator{
-					generateTxF: func() (ids.ID, error) {
-						return ids.GenerateTestID(), nil
+			agents: []Agent[ids.ID, ids.ID]{
+				NewAgent[ids.ID, ids.ID](
+					&mockTxGenerator{
+						generateTxF: func() (ids.ID, error) {
+							return ids.GenerateTestID(), nil
+						},
 					},
-				},
+					&mockIssuer{
+						issueTxErr: errMockIssuer,
+					},
+					tracker,
+				),
 			},
-			issuers: []Issuer[ids.ID]{&mockIssuer{
-				issueTxErr: errMockIssuer,
-			}},
 			expectedErr: errMockIssuer,
 		},
 	}
@@ -175,13 +152,8 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			tracker, err := NewPrometheusTracker[ids.ID](prometheus.NewRegistry())
-			r.NoError(err)
-
 			orchestrator, err := NewGradualLoadOrchestrator(
-				tt.generators,
-				tt.issuers,
-				tracker,
+				tt.agents,
 				logging.NoLog{},
 				DefaultGradualLoadOrchestratorConfig(),
 			)

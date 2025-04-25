@@ -228,23 +228,22 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		)
 		require.NoError(err)
 
-		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		for i := 0; i < len(txGenerators); i++ {
+		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(txGenerators))
+		for i := range agents {
 			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
 			require.NoError(err)
-			issuers[i] = issuer
+			agents[i] = load.NewAgent(txGenerators[i], issuer, tracker)
 		}
 
 		orchestrator, err := load.NewShortBurstOrchestrator(
-			txGenerators,
-			issuers,
+			agents,
 			shortBurstConfig,
 		)
 		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
-		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
+		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(agents))
 		require.Equal(numTxs, tracker.GetObservedIssued())
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
@@ -269,17 +268,15 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		)
 		require.NoError(err)
 
-		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		for i := 0; i < len(txGenerators); i++ {
+		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(txGenerators))
+		for i := range agents {
 			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
 			require.NoError(err)
-			issuers[i] = issuer
+			agents[i] = load.NewAgent(txGenerators[i], issuer, tracker)
 		}
 
 		orchestrator, err := load.NewGradualLoadOrchestrator(
-			txGenerators,
-			issuers,
-			tracker,
+			agents,
 			tc.Log(),
 			gradualLoadConfig,
 		)

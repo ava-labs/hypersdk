@@ -5,17 +5,12 @@ package load
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 )
 
-var (
-	ErrMismatchedGeneratorsAndIssuers = errors.New("number of generators and issuers must match")
-
-	_ orchestrator = (*ShortBurstOrchestrator[any])(nil)
-)
+var _ orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
 
 type ShortBurstOrchestratorConfig struct {
 	TxsPerIssuer uint64
@@ -24,53 +19,46 @@ type ShortBurstOrchestratorConfig struct {
 
 // ShortBurstOrchestrator tests the network by sending a fixed number of
 // transactions en masse in a short timeframe.
-type ShortBurstOrchestrator[T comparable] struct {
-	generators []TxGenerator[T]
-	issuers    []Issuer[T]
+type ShortBurstOrchestrator[T, U comparable] struct {
+	agents []Agent[T, U]
 
 	config ShortBurstOrchestratorConfig
 }
 
-func NewShortBurstOrchestrator[T comparable](
-	txGenerators []TxGenerator[T],
-	issuers []Issuer[T],
+func NewShortBurstOrchestrator[T, U comparable](
+	agents []Agent[T, U],
 	config ShortBurstOrchestratorConfig,
-) (*ShortBurstOrchestrator[T], error) {
-	if len(txGenerators) != len(issuers) {
-		return nil, ErrMismatchedGeneratorsAndIssuers
-	}
-	return &ShortBurstOrchestrator[T]{
-		generators: txGenerators,
-		issuers:    issuers,
-		config:     config,
+) (*ShortBurstOrchestrator[T, U], error) {
+	return &ShortBurstOrchestrator[T, U]{
+		agents: agents,
+		config: config,
 	}, nil
 }
 
 // Execute orders issuers to send a fixed number of transactions and then waits
 // for all of their statuses to be confirmed or for a timeout to occur.
-func (o *ShortBurstOrchestrator[T]) Execute(ctx context.Context) error {
+func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	observerCtx, observerCancel := context.WithCancel(ctx)
 	defer observerCancel()
 
 	// start a goroutine to confirm each issuer's transactions
 	observerGroup := errgroup.Group{}
-	for _, issuer := range o.issuers {
-		observerGroup.Go(func() error { return issuer.Listen(observerCtx) })
+	for _, agent := range o.agents {
+		observerGroup.Go(func() error { return agent.Issuer.Listen(observerCtx) })
 	}
 
 	// start issuing transactions sequentially from each issuer
 	issuerGroup := errgroup.Group{}
-	for i, issuer := range o.issuers {
-		generator := o.generators[i]
+	for _, agent := range o.agents {
 		issuerGroup.Go(func() error {
-			defer issuer.Stop()
+			defer agent.Issuer.Stop()
 
 			for range o.config.TxsPerIssuer {
-				tx, err := generator.GenerateTx()
+				tx, err := agent.Generator.GenerateTx()
 				if err != nil {
 					return err
 				}
-				if err := issuer.IssueTx(ctx, tx); err != nil {
+				if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 					return err
 				}
 			}
