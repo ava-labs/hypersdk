@@ -3,9 +3,10 @@
 
 package auth
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,10 +23,12 @@ const (
 )
 
 type ED25519 struct {
-	Signer    ed25519.PublicKey `json:"signer"`
-	Signature ed25519.Signature `json:"signature"`
+	Signer    ed25519.PublicKey `canoto:"fixed bytes,1" json:"signer"`
+	Signature ed25519.Signature `canoto:"fixed bytes,2" json:"signature"`
 
 	addr codec.Address
+
+	canotoData canotoData_ED25519 //nolint:revive
 }
 
 func (d *ED25519) address() codec.Address {
@@ -63,26 +66,15 @@ func (d *ED25519) Sponsor() codec.Address {
 }
 
 func (d *ED25519) Bytes() []byte {
-	b := make([]byte, ED25519Size)
-	b[0] = d.GetTypeID()
-	copy(b[1:], d.Signer[:])
-	copy(b[1+ed25519.PublicKeyLen:], d.Signature[:])
-	return b
+	return append([]byte{ED25519ID}, d.MarshalCanoto()...)
 }
 
 func UnmarshalED25519(bytes []byte) (chain.Auth, error) {
-	if len(bytes) != ED25519Size {
-		return nil, fmt.Errorf("invalid ed25519 auth size %d != %d", len(bytes), ED25519Size)
+	ed25519 := &ED25519{}
+	if err := ed25519.UnmarshalCanoto(bytes[1:]); err != nil {
+		return nil, err
 	}
-
-	if bytes[0] != ED25519ID {
-		return nil, fmt.Errorf("unexpected ed25519 typeID: %d != %d", bytes[0], ED25519ID)
-	}
-
-	var d ED25519
-	copy(d.Signer[:], bytes[1:])
-	copy(d.Signature[:], bytes[1+ed25519.PublicKeyLen:])
-	return &d, nil
+	return ed25519, nil
 }
 
 var _ chain.AuthFactory = (*ED25519Factory)(nil)

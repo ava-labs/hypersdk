@@ -3,9 +3,10 @@
 
 package auth
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,10 +23,12 @@ const (
 )
 
 type SECP256R1 struct {
-	Signer    secp256r1.PublicKey `json:"signer"`
-	Signature secp256r1.Signature `json:"signature"`
+	Signer    secp256r1.PublicKey `canoto:"fixed bytes,1" json:"signer"`
+	Signature secp256r1.Signature `canoto:"fixed bytes,2" json:"signature"`
 
 	addr codec.Address
+
+	canotoData canotoData_SECP256R1 //nolint:revive
 }
 
 func (d *SECP256R1) address() codec.Address {
@@ -63,26 +66,15 @@ func (d *SECP256R1) Sponsor() codec.Address {
 }
 
 func (d *SECP256R1) Bytes() []byte {
-	b := make([]byte, SECP256R1Size)
-	b[0] = SECP256R1ID
-	copy(b[1:], d.Signer[:])
-	copy(b[1+secp256r1.PublicKeyLen:], d.Signature[:])
-	return b
+	return d.MarshalCanoto()
 }
 
 func UnmarshalSECP256R1(bytes []byte) (chain.Auth, error) {
-	if len(bytes) != SECP256R1Size {
-		return nil, fmt.Errorf("invalid secp256r1 auth size %d != %d", len(bytes), ED25519Size)
+	secp256r1 := &SECP256R1{}
+	if err := secp256r1.UnmarshalCanoto(bytes); err != nil {
+		return nil, err
 	}
-
-	if bytes[0] != SECP256R1ID {
-		return nil, fmt.Errorf("unexpected secp256r1 typeID: %d != %d", bytes[0], SECP256R1ID)
-	}
-
-	var d SECP256R1
-	copy(d.Signer[:], bytes[1:])
-	copy(d.Signature[:], bytes[1+secp256r1.PublicKeyLen:])
-	return &d, nil
+	return secp256r1, nil
 }
 
 var _ chain.AuthFactory = (*SECP256R1Factory)(nil)

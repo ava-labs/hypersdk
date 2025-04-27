@@ -3,9 +3,10 @@
 
 package auth
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"context"
-	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -22,10 +23,12 @@ const (
 )
 
 type BLS struct {
-	Signer    *bls.PublicKey `json:"signer,omitempty"`
-	Signature *bls.Signature `json:"signature,omitempty"`
+	Signer    *bls.PublicKey `canoto:"pointer,1" json:"signer,omitempty"`
+	Signature *bls.Signature `canoto:"pointer,2" json:"signature,omitempty"`
 
 	addr codec.Address
+
+	canotoData canotoData_BLS //nolint:revive
 }
 
 func (b *BLS) address() codec.Address {
@@ -63,43 +66,15 @@ func (b *BLS) Sponsor() codec.Address {
 }
 
 func (b *BLS) Bytes() []byte {
-	bytes := make([]byte, BLSSize)
-	bytes[0] = BLSID
-	publicKeyBytes := bls.PublicKeyToBytes(b.Signer)
-	copy(bytes[1:], publicKeyBytes)
-	signatureBytes := bls.SignatureToBytes(b.Signature)
-	copy(bytes[1+bls.PublicKeyLen:], signatureBytes)
-	return bytes
+	return b.MarshalCanoto()
 }
 
 func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
-	if len(bytes) != BLSSize {
-		return nil, fmt.Errorf("invalid BLS auth size %d != %d", len(bytes), BLSSize)
-	}
-
-	if bytes[0] != BLSID {
-		return nil, fmt.Errorf("unexpected BLS typeID: %d != %d", bytes[0], BLSID)
-	}
-
-	var b BLS
-	signer := make([]byte, bls.PublicKeyLen)
-	copy(signer, bytes[1:])
-	signature := make([]byte, bls.SignatureLen)
-	copy(signature, bytes[1+bls.PublicKeyLen:])
-
-	pk, err := bls.PublicKeyFromBytes(signer)
-	if err != nil {
+	bls := &BLS{}
+	if err := bls.UnmarshalCanoto(bytes); err != nil {
 		return nil, err
 	}
-	b.Signer = pk
-
-	sig, err := bls.SignatureFromBytes(signature)
-	if err != nil {
-		return nil, err
-	}
-	b.Signature = sig
-
-	return &b, nil
+	return bls, nil
 }
 
 var _ chain.AuthFactory = (*BLSFactory)(nil)
@@ -117,7 +92,7 @@ func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: signature}, nil
+	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.NewSignature(signature)}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64) {
