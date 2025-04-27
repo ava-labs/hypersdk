@@ -5,8 +5,10 @@ package codec
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/consts"
@@ -14,6 +16,7 @@ import (
 
 type Blah interface {
 	Typed
+	CanotoSpec(...reflect.Type) *canoto.Spec
 	Bark() string
 }
 
@@ -23,11 +26,25 @@ func (*Blah1) Bark() string { return "blah1" }
 
 func (*Blah1) GetTypeID() uint8 { return 0 }
 
+func (*Blah1) CanotoSpec(...reflect.Type) *canoto.Spec {
+	return &canoto.Spec{
+		Name:   "blah1",
+		Fields: []canoto.FieldType{},
+	}
+}
+
 type Blah2 struct{}
 
 func (*Blah2) Bark() string { return "blah2" }
 
 func (*Blah2) GetTypeID() uint8 { return 1 }
+
+func (*Blah2) CanotoSpec(...reflect.Type) *canoto.Spec {
+	return &canoto.Spec{
+		Name:   "blah2",
+		Fields: []canoto.FieldType{},
+	}
+}
 
 type Blah3 struct{}
 
@@ -35,13 +52,28 @@ func (*Blah3) Bark() string { return "blah3" }
 
 func (*Blah3) GetTypeID() uint8 { return 2 }
 
+func (*Blah3) CanotoSpec(...reflect.Type) *canoto.Spec {
+	return &canoto.Spec{
+		Name:   "blah3",
+		Fields: []canoto.FieldType{},
+	}
+}
+
 type withID struct {
 	ID uint8
 }
 
 func (w *withID) GetTypeID() uint8 { return w.ID }
+
+func (*withID) CanotoSpec(...reflect.Type) *canoto.Spec {
+	return &canoto.Spec{
+		Name:   "blah3",
+		Fields: []canoto.FieldType{},
+	}
+}
+
 func TestTypeParser(t *testing.T) {
-	tp := NewTypeParser[Blah]()
+	tp := NewTParser[Blah]()
 
 	t.Run("empty parser", func(t *testing.T) {
 		require := require.New(t)
