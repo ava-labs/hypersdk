@@ -50,7 +50,7 @@ const (
 var (
 	networkConfig workload.TestNetworkConfiguration
 	txWorkload    workload.TxWorkload
-	expectedABI   abi.ABI
+	expectedABI   abi.TempABI
 
 	loadFactory       chain.AuthFactory
 	loadTxGenerator   LoadTxGenerator
@@ -78,7 +78,7 @@ type CreateTransfer func(to codec.Address, amount uint64, nonce uint64) chain.Ac
 func SetWorkload(
 	networkConfigImpl workload.TestNetworkConfiguration,
 	workloadTxGenerator workload.TxGenerator,
-	abi abi.ABI,
+	abi abi.TempABI,
 	loadAccount chain.AuthFactory,
 	generator LoadTxGenerator,
 	shortBurstConf load.ShortBurstOrchestratorConfig,
