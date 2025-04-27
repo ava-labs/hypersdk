@@ -106,9 +106,9 @@ type VM struct {
 	metadataManager       chain.MetadataManager
 	txParser              chain.Parser
 	abi                   abi.TempABI
-	actionCodec           *codec.TParser[chain.Action]
-	authCodec             *codec.TParser[chain.Auth]
-	outputCodec           *codec.TParser[codec.Typed]
+	actionCodec           *codec.CanotoParser[chain.Action]
+	authCodec             *codec.CanotoParser[chain.Auth]
+	outputCodec           *codec.CanotoParser[codec.Typed]
 	authEngines           auth.Engines
 
 	// authVerifiers are used to verify signatures in parallel
@@ -127,9 +127,9 @@ func New(
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TParser[chain.Action],
-	authCodec *codec.TParser[chain.Auth],
-	outputCodec *codec.TParser[codec.Typed],
+	actionCodec *codec.CanotoParser[chain.Action],
+	authCodec *codec.CanotoParser[chain.Auth],
+	outputCodec *codec.CanotoParser[codec.Typed],
 	authEngines auth.Engines,
 	options ...Option,
 ) (*VM, error) {

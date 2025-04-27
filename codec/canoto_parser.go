@@ -20,7 +20,7 @@ type Typed interface {
 	GetTypeID() uint8
 }
 
-type CanotoType interface {
+type CanotoTyped interface {
 	Typed
 	CanotoSpec(...reflect.Type) *canoto.Spec
 }
@@ -30,14 +30,14 @@ type TypedStruct struct {
 	ID   uint8  `serialize:"true" json:"id"`
 }
 
-type TParser[T Typed] struct {
+type CanotoParser[T Typed] struct {
 	registeredTypes []*canoto.Spec
 	indexToDecoder  map[uint8]*decoder[T]
 	typeToIndex     map[string]uint8
 }
 
-func NewTParser[T Typed]() *TParser[T] {
-	return &TParser[T]{
+func NewCanotoParser[T Typed]() *CanotoParser[T] {
+	return &CanotoParser[T]{
 		registeredTypes: []*canoto.Spec{},
 		indexToDecoder:  map[uint8]*decoder[T]{},
 		typeToIndex:     map[string]uint8{},
@@ -47,7 +47,7 @@ func NewTParser[T Typed]() *TParser[T] {
 // Register registers a new type into TypeParser [p]. Registers the type by using
 // the string representation of [o], and sets the decoder of that index to [f].
 // Returns an error if [o] has already been registered or the TypeParser is full.
-func (p *TParser[T]) Register(instance CanotoType, f func([]byte) (T, error)) error {
+func (p *CanotoParser[T]) Register(instance CanotoTyped, f func([]byte) (T, error)) error {
 	if len(p.indexToDecoder) == int(consts.MaxUint8)+1 {
 		return ErrTooManyItems
 	}
@@ -66,7 +66,7 @@ func (p *TParser[T]) Register(instance CanotoType, f func([]byte) (T, error)) er
 
 // Unmarshal unmarshals a value of type [T] from the reader by unpacking
 // the typeID and invoking the corresponding decoder function.
-func (p *TParser[T]) Unmarshal(bytes []byte) (T, error) {
+func (p *CanotoParser[T]) Unmarshal(bytes []byte) (T, error) {
 	if len(bytes) == 0 {
 		return *new(T), fmt.Errorf("typeID not found in slice with length %d", len(bytes))
 	}
@@ -85,11 +85,11 @@ func (p *TParser[T]) Unmarshal(bytes []byte) (T, error) {
 	return decoder(bytes)
 }
 
-func (p *TParser[T]) GetRegisteredTypes() []*canoto.Spec {
+func (p *CanotoParser[T]) GetRegisteredTypes() []*canoto.Spec {
 	return p.registeredTypes
 }
 
-func (p *TParser[T]) GetTypedStructs() []TypedStruct {
+func (p *CanotoParser[T]) GetTypedStructs() []TypedStruct {
 	typedStructs := make([]TypedStruct, 0)
 	for k, v := range p.typeToIndex {
 		typedStructs = append(typedStructs, TypedStruct{
@@ -102,7 +102,7 @@ func (p *TParser[T]) GetTypedStructs() []TypedStruct {
 
 // lookupIndex returns the decoder function and success of lookup of [index]
 // from Typeparser [p].
-func (p *TParser[T]) lookupIndex(index uint8) (func([]byte) (T, error), bool) {
+func (p *CanotoParser[T]) lookupIndex(index uint8) (func([]byte) (T, error), bool) {
 	d, ok := p.indexToDecoder[index]
 	if ok {
 		return d.f, true
