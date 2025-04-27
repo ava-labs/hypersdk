@@ -105,7 +105,7 @@ type VM struct {
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	txParser              chain.Parser
-	abi                   abi.TempABI
+	abi                   abi.ABI
 	actionCodec           *codec.CanotoParser[chain.Action]
 	authCodec             *codec.CanotoParser[chain.Auth]
 	outputCodec           *codec.CanotoParser[codec.Typed]
@@ -145,7 +145,7 @@ func New(
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		txParser:              chain.NewTxTypeParser(actionCodec, authCodec),
-		abi:                   abi.NewTempABI(actionCodec, outputCodec),
+		abi:                   abi.NewABI(actionCodec, outputCodec),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,
