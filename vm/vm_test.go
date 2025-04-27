@@ -84,9 +84,9 @@ func WithConfigBytes(f func() []byte) func(*VMTestNetworkOptions) {
 
 func NewTestVMFactory(r *require.Assertions) *vm.Factory {
 	var (
-		actionParser = codec.NewTypeParser[chain.Action]()
-		authParser   = codec.NewTypeParser[chain.Auth]()
-		outputParser = codec.NewTypeParser[codec.Typed]()
+		actionParser = codec.NewTParser[chain.Action]()
+		authParser   = codec.NewTParser[chain.Auth]()
+		outputParser = codec.NewTParser[codec.Typed]()
 	)
 	r.NoError(errors.Join(
 		actionParser.Register(&chaintest.TestAction{}, chaintest.UnmarshalTestAction),

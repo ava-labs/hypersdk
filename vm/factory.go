@@ -14,9 +14,9 @@ type Factory struct {
 	genesisFactory  genesis.GenesisAndRuleFactory
 	balanceHandler  chain.BalanceHandler
 	metadataManager chain.MetadataManager
-	actionCodec     *codec.TypeParser[chain.Action]
-	authCodec       *codec.TypeParser[chain.Auth]
-	outputCodec     *codec.TypeParser[codec.Typed]
+	actionCodec     *codec.TParser[chain.Action]
+	authCodec       *codec.TParser[chain.Auth]
+	outputCodec     *codec.TParser[codec.Typed]
 	authEngines     auth.Engines
 
 	options []Option
@@ -26,9 +26,9 @@ func NewFactory(
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
+	actionCodec *codec.TParser[chain.Action],
+	authCodec *codec.TParser[chain.Auth],
+	outputCodec *codec.TParser[codec.Typed],
 	authEngines auth.Engines,
 	options ...Option,
 ) *Factory {
