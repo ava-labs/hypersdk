@@ -28,7 +28,7 @@ type VM interface {
 	Tracer() trace.Tracer
 	Logger() logging.Logger
 	GetParser() chain.Parser
-	GetABI() abi.ABI
+	GetABI() abi.TempABI
 	GetRuleFactory() chain.RuleFactory
 	Submit(
 		ctx context.Context,

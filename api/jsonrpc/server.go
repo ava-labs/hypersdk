@@ -144,7 +144,7 @@ func (j *JSONRPCServer) UnitPrices(
 type GetABIArgs struct{}
 
 type GetABIReply struct {
-	ABI abi.ABI `json:"abi"`
+	ABI abi.TempABI `json:"abi"`
 }
 
 func (j *JSONRPCServer) GetABI(_ *http.Request, _ *GetABIArgs, reply *GetABIReply) error {
