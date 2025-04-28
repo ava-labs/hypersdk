@@ -57,15 +57,10 @@ func NewDummyTestActions(numActions int) []*TestAction {
 	actions := make([]*TestAction, numActions)
 	for i := 0; i < numActions; i++ {
 		actions[i] = &TestAction{
-			NumComputeUnits:              1,
-			SpecifiedStateKeys:           []string{},
-			SpecifiedStateKeyPermissions: []state.Permissions{},
-			ReadKeys:                     [][]byte{},
-			WriteKeys:                    [][]byte{},
-			WriteValues:                  [][]byte{},
-			Start:                        -1,
-			End:                          -1,
-			Nonce:                        uint64(i),
+			NumComputeUnits: 1,
+			Start:           -1,
+			End:             -1,
+			Nonce:           uint64(i),
 		}
 	}
 
@@ -92,22 +87,6 @@ func UnmarshalTestAction(b []byte) (chain.Action, error) {
 	if err := t.UnmarshalCanoto(b[1:]); err != nil {
 		return nil, err
 	}
-
-	// if t.SpecifiedStateKeys == nil {
-	// 	t.SpecifiedStateKeys = make([]string, 0)
-	// }
-	// if t.SpecifiedStateKeyPermissions == nil {
-	// 	t.SpecifiedStateKeyPermissions = make([]state.Permissions, 0)
-	// }
-	// if t.ReadKeys == nil {
-	// 	t.ReadKeys = make([][]byte, 0)
-	// }
-	// if t.WriteKeys == nil {
-	// 	t.WriteKeys = make([][]byte, 0)
-	// }
-	// if t.WriteValues == nil {
-	// 	t.WriteValues = make([][]byte, 0)
-	// }
 
 	return t, nil
 }
