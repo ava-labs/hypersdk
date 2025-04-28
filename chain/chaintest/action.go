@@ -30,16 +30,16 @@ var (
 )
 
 type TestAction struct {
-	NumComputeUnits              uint64              `canoto:"uint,1" json:"computeUnits"`
+	NumComputeUnits              uint64              `canoto:"uint,1"            json:"computeUnits"`
 	SpecifiedStateKeys           []string            `canoto:"repeated string,2" json:"specifiedStateKeys"`
-	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated uint,3" json:"specifiedStateKeyPermissions"`
-	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" json:"reads"`
-	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" json:"writeKeys"`
-	WriteValues                  [][]byte            `canoto:"repeated bytes,6" json:"writeValues"`
-	ExecuteErr                   bool                `canoto:"bool,7" json:"executeErr"`
-	Nonce                        uint64              `canoto:"uint,8" json:"nonce"`
-	Start                        int64               `canoto:"int,9" json:"start"`
-	End                          int64               `canoto:"int,10" json:"end"`
+	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated uint,3"   json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `canoto:"repeated bytes,4"  json:"reads"`
+	WriteKeys                    [][]byte            `canoto:"repeated bytes,5"  json:"writeKeys"`
+	WriteValues                  [][]byte            `canoto:"repeated bytes,6"  json:"writeValues"`
+	ExecuteErr                   bool                `canoto:"bool,7"            json:"executeErr"`
+	Nonce                        uint64              `canoto:"uint,8"            json:"nonce"`
+	Start                        int64               `canoto:"int,9"             json:"start"`
+	End                          int64               `canoto:"int,10"            json:"end"`
 
 	canotoData canotoData_TestAction
 }

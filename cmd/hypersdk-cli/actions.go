@@ -33,7 +33,7 @@ var actionsCmd = &cobra.Command{
 }
 
 type abiWrapper struct {
-	ABI abi.ABI
+	ABI *abi.ABI
 }
 
 func (a abiWrapper) String() string {

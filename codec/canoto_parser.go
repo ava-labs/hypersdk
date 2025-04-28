@@ -3,6 +3,8 @@
 
 package codec
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"fmt"
 	"reflect"
@@ -26,8 +28,10 @@ type CanotoTyped interface {
 }
 
 type TypedStruct struct {
-	Name string `json:"name"`
-	ID   uint8  `json:"id"`
+	Name string `canoto:"string,1" json:"name"`
+	ID   uint8  `canoto:"uint,2"   json:"id"`
+
+	canotoData canotoData_TypedStruct
 }
 
 type CanotoParser[T Typed] struct {

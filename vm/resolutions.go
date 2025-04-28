@@ -44,7 +44,7 @@ func (vm *VM) SubnetID() ids.ID {
 	return vm.snowCtx.SubnetID
 }
 
-func (vm *VM) GetABI() abi.ABI {
+func (vm *VM) GetABI() *abi.ABI {
 	return vm.abi
 }
 

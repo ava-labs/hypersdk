@@ -23,12 +23,12 @@ var (
 )
 
 type TestAuth struct {
-	NumComputeUnits uint64        `canoto:"uint,1" json:"numComputeUnits"`
+	NumComputeUnits uint64        `canoto:"uint,1"        json:"numComputeUnits"`
 	ActorAddress    codec.Address `canoto:"fixed bytes,2" json:"actor"`
 	SponsorAddress  codec.Address `canoto:"fixed bytes,3" json:"sponsor"`
-	ShouldErr       bool          `canoto:"bool,4" json:"shouldErr"`
-	Start           int64         `canoto:"int,5" json:"start"`
-	End             int64         `canoto:"int,6" json:"end"`
+	ShouldErr       bool          `canoto:"bool,4"        json:"shouldErr"`
+	Start           int64         `canoto:"int,5"         json:"start"`
+	End             int64         `canoto:"int,6"         json:"end"`
 
 	canotoData canotoData_TestAuth
 }

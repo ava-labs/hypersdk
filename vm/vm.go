@@ -105,7 +105,7 @@ type VM struct {
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	txParser              chain.Parser
-	abi                   abi.ABI
+	abi                   *abi.ABI
 	actionCodec           *codec.CanotoParser[chain.Action]
 	authCodec             *codec.CanotoParser[chain.Auth]
 	outputCodec           *codec.CanotoParser[codec.Typed]
