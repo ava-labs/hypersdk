@@ -113,8 +113,8 @@ func TestIndexerClientTransactions(t *testing.T) {
 
 	parser := chaintest.NewTestParser()
 	badParser := &chain.TxTypeParser{
-		ActionRegistry: codec.NewTypeParser[chain.Action](),
-		AuthRegistry:   codec.NewTypeParser[chain.Auth](),
+		ActionParser: codec.NewCanotoParser[chain.Action](),
+		AuthParser:   codec.NewCanotoParser[chain.Auth](),
 	}
 
 	testCases := []struct {
