@@ -547,7 +547,7 @@ func (v *VM[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
 	return &InputCovariantVM[I, O, A]{vm: v}
 }
 
-// GetNetwork returns *p2p.Network
+// GetNetwork returns VM's peer to peer network
 func (v *VM[I, O, A]) GetNetwork() *p2p.Network {
 	return v.network
 }
