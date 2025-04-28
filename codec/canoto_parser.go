@@ -26,8 +26,8 @@ type CanotoTyped interface {
 }
 
 type TypedStruct struct {
-	Name string `serialize:"true" json:"name"`
-	ID   uint8  `serialize:"true" json:"id"`
+	Name string `json:"name"`
+	ID   uint8  `json:"id"`
 }
 
 type CanotoParser[T Typed] struct {

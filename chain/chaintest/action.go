@@ -30,16 +30,16 @@ var (
 )
 
 type TestAction struct {
-	NumComputeUnits              uint64              `canoto:"uint,1" serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys           []string            `canoto:"repeated string,2" serialize:"true" json:"specifiedStateKeys"`
-	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated uint,3" serialize:"true" json:"specifiedStateKeyPermissions"`
-	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" serialize:"true" json:"reads"`
-	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" serialize:"true" json:"writeKeys"`
-	WriteValues                  [][]byte            `canoto:"repeated bytes,6" serialize:"true" json:"writeValues"`
-	ExecuteErr                   bool                `canoto:"bool,7" serialize:"true" json:"executeErr"`
-	Nonce                        uint64              `canoto:"uint,8" serialize:"true" json:"nonce"`
-	Start                        int64               `canoto:"int,9" serialize:"true" json:"start"`
-	End                          int64               `canoto:"int,10" serialize:"true" json:"end"`
+	NumComputeUnits              uint64              `canoto:"uint,1" json:"computeUnits"`
+	SpecifiedStateKeys           []string            `canoto:"repeated string,2" json:"specifiedStateKeys"`
+	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated uint,3" json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" json:"reads"`
+	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" json:"writeKeys"`
+	WriteValues                  [][]byte            `canoto:"repeated bytes,6" json:"writeValues"`
+	ExecuteErr                   bool                `canoto:"bool,7" json:"executeErr"`
+	Nonce                        uint64              `canoto:"uint,8" json:"nonce"`
+	Start                        int64               `canoto:"int,9" json:"start"`
+	End                          int64               `canoto:"int,10" json:"end"`
 
 	canotoData canotoData_TestAction
 }
@@ -137,7 +137,7 @@ func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
 }
 
 type TestOutput struct {
-	Bytes []byte `canoto:"bytes,1" serialize:"true" json:"bytes"`
+	Bytes []byte `canoto:"bytes,1" json:"bytes"`
 
 	canotoData canotoData_TestOutput
 }

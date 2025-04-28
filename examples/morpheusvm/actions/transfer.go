@@ -34,13 +34,13 @@ var (
 
 type Transfer struct {
 	// To is the recipient of the [Value].
-	To codec.Address `canoto:"fixed bytes,1" serialize:"true" json:"to"`
+	To codec.Address `canoto:"fixed bytes,1" json:"to"`
 
 	// Amount are transferred to [To].
-	Value uint64 `canoto:"uint,2" serialize:"true" json:"value"`
+	Value uint64 `canoto:"uint,2" json:"value"`
 
 	// Optional message to accompany transaction.
-	Memo []byte `canoto:"bytes,3" serialize:"true" json:"memo"`
+	Memo []byte `canoto:"bytes,3" json:"memo"`
 
 	canotoData canotoData_Transfer
 }
@@ -110,8 +110,8 @@ func (*Transfer) ValidRange(chain.Rules) (int64, int64) {
 var _ codec.Typed = (*TransferResult)(nil)
 
 type TransferResult struct {
-	SenderBalance   uint64 `canoto:"uint,1" serialize:"true" json:"sender_balance"`
-	ReceiverBalance uint64 `canoto:"uint,2" serialize:"true" json:"receiver_balance"`
+	SenderBalance   uint64 `canoto:"uint,1" json:"sender_balance"`
+	ReceiverBalance uint64 `canoto:"uint,2" json:"receiver_balance"`
 
 	canotoData canotoData_TransferResult
 }
