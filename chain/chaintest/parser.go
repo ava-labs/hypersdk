@@ -13,12 +13,10 @@ import (
 func NewTestParser() *chain.TxTypeParser {
 	actionCodec := codec.NewCanotoParser[chain.Action]()
 	authCodec := codec.NewCanotoParser[chain.Auth]()
-	outputCodec := codec.NewCanotoParser[codec.Typed]()
 
 	err := errors.Join(
 		actionCodec.Register(&TestAction{}, UnmarshalTestAction),
 		authCodec.Register(&TestAuth{}, UnmarshalTestAuth),
-		outputCodec.Register(&TestOutput{}, UnmarshalTestOutput),
 	)
 	if err != nil {
 		panic(err)
