@@ -11,9 +11,9 @@ import (
 )
 
 func NewTestParser() *chain.TxTypeParser {
-	actionCodec := codec.NewTypeParser[chain.Action]()
-	authCodec := codec.NewTypeParser[chain.Auth]()
-	outputCodec := codec.NewTypeParser[codec.Typed]()
+	actionCodec := codec.NewCanotoParser[chain.Action]()
+	authCodec := codec.NewCanotoParser[chain.Auth]()
+	outputCodec := codec.NewCanotoParser[codec.Typed]()
 
 	err := errors.Join(
 		actionCodec.Register(&TestAction{}, UnmarshalTestAction),
@@ -24,8 +24,5 @@ func NewTestParser() *chain.TxTypeParser {
 		panic(err)
 	}
 
-	return &chain.TxTypeParser{
-		ActionRegistry: actionCodec,
-		AuthRegistry:   authCodec,
-	}
+	return chain.NewTxTypeParser(actionCodec, authCodec)
 }

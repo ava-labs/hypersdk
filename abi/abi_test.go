@@ -8,10 +8,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/chain/chaintest"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDummy(t *testing.T) {

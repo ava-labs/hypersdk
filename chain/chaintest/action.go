@@ -3,6 +3,8 @@
 
 package chaintest
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"bytes"
 	"context"
@@ -11,12 +13,10 @@ import (
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
-	"github.com/ava-labs/hypersdk/consts"
 	"github.com/ava-labs/hypersdk/state"
 )
 
@@ -30,16 +30,18 @@ var (
 )
 
 type TestAction struct {
-	NumComputeUnits              uint64              `serialize:"true" json:"computeUnits"`
-	SpecifiedStateKeys           []string            `serialize:"true" json:"specifiedStateKeys"`
-	SpecifiedStateKeyPermissions []state.Permissions `serialize:"true" json:"specifiedStateKeyPermissions"`
-	ReadKeys                     [][]byte            `serialize:"true" json:"reads"`
-	WriteKeys                    [][]byte            `serialize:"true" json:"writeKeys"`
-	WriteValues                  [][]byte            `serialize:"true" json:"writeValues"`
-	ExecuteErr                   bool                `serialize:"true" json:"executeErr"`
-	Nonce                        uint64              `serialize:"true" json:"nonce"`
-	Start                        int64               `serialize:"true" json:"start"`
-	End                          int64               `serialize:"true" json:"end"`
+	NumComputeUnits              uint64              `canoto:"uint,1" serialize:"true" json:"computeUnits"`
+	SpecifiedStateKeys           []string            `canoto:"repeated string,2" serialize:"true" json:"specifiedStateKeys"`
+	SpecifiedStateKeyPermissions []state.Permissions `canoto:"repeated uint,3" serialize:"true" json:"specifiedStateKeyPermissions"`
+	ReadKeys                     [][]byte            `canoto:"repeated bytes,4" serialize:"true" json:"reads"`
+	WriteKeys                    [][]byte            `canoto:"repeated bytes,5" serialize:"true" json:"writeKeys"`
+	WriteValues                  [][]byte            `canoto:"repeated bytes,6" serialize:"true" json:"writeValues"`
+	ExecuteErr                   bool                `canoto:"bool,7" serialize:"true" json:"executeErr"`
+	Nonce                        uint64              `canoto:"uint,8" serialize:"true" json:"nonce"`
+	Start                        int64               `canoto:"int,9" serialize:"true" json:"start"`
+	End                          int64               `canoto:"int,10" serialize:"true" json:"end"`
+
+	canotoData canotoData_TestAction
 }
 
 // NewDummyTestAction returns a single valid instance of TestAction
@@ -75,22 +77,7 @@ func (*TestAction) GetTypeID() uint8 {
 }
 
 func (t *TestAction) Bytes() []byte {
-	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0, 4096),
-		MaxSize: consts.NetworkSizeLimit,
-	}
-	p.PackByte(t.GetTypeID())
-	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
-	// interact with values unmarshalled from the network, which should guarantee a valid
-	// value here.
-	// Panic if we fail to marshal a value here to catch any potential bugs early.
-	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
-	// here.
-	err := codec.LinearCodec.MarshalInto(t, p)
-	if err != nil {
-		panic(err)
-	}
-	return p.Bytes
+	return append([]byte{t.GetTypeID()}, t.MarshalCanoto()...)
 }
 
 func UnmarshalTestAction(b []byte) (chain.Action, error) {
@@ -102,12 +89,26 @@ func UnmarshalTestAction(b []byte) (chain.Action, error) {
 		return nil, fmt.Errorf("unexpected test action typeID: %d != %d", b[0], TestActionID)
 	}
 
-	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: b[1:]},
-		t,
-	); err != nil {
+	if err := t.UnmarshalCanoto(b[1:]); err != nil {
 		return nil, err
 	}
+
+	// if t.SpecifiedStateKeys == nil {
+	// 	t.SpecifiedStateKeys = make([]string, 0)
+	// }
+	// if t.SpecifiedStateKeyPermissions == nil {
+	// 	t.SpecifiedStateKeyPermissions = make([]state.Permissions, 0)
+	// }
+	// if t.ReadKeys == nil {
+	// 	t.ReadKeys = make([][]byte, 0)
+	// }
+	// if t.WriteKeys == nil {
+	// 	t.WriteKeys = make([][]byte, 0)
+	// }
+	// if t.WriteValues == nil {
+	// 	t.WriteValues = make([][]byte, 0)
+	// }
+
 	return t, nil
 }
 
@@ -156,17 +157,26 @@ func (t *TestAction) ValidRange(_ chain.Rules) (int64, int64) {
 	return t.Start, t.End
 }
 
-type TestOutput struct{}
+type TestOutput struct {
+	Bytes []byte `canoto:"bytes,1" serialize:"true" json:"bytes"`
+
+	canotoData canotoData_TestOutput
+}
 
 func (*TestOutput) GetTypeID() uint8 {
 	return TestActionID
 }
 
 func UnmarshalTestOutput(b []byte) (codec.Typed, error) {
+	t := &TestOutput{}
 	if !bytes.Equal([]byte{TestActionID}, b) {
 		return nil, fmt.Errorf("expected lone typeID %d for test output, found %x", 0, b)
 	}
-	return &TestOutput{}, nil
+	if err := t.UnmarshalCanoto(b[1:]); err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 // ActionTest is a single parameterized test. It calls Execute on the action with the passed parameters
