@@ -8,6 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Metrics contains Prometheus metrics for the snow package
 type Metrics struct {
 	blockBuild  metric.Averager
 	blockParse  metric.Averager
