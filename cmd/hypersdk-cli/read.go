@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -62,7 +63,7 @@ var readCmd = &cobra.Command{
 
 		// 4. get action name from args
 		if len(args) == 0 {
-			return fmt.Errorf("action name is required")
+			return errors.New("action name is required")
 		}
 		actionName := args[0]
 		spec, ok := abi.FindActionSpecByName(actionName)
@@ -94,12 +95,12 @@ var readCmd = &cobra.Command{
 		}
 
 		if len(results) == 0 {
-			return fmt.Errorf("no results returned")
+			return errors.New("no results returned")
 		}
 
 		outputBytes := results[0]
 		if len(outputBytes) == 0 {
-			return fmt.Errorf("empty output bytes")
+			return errors.New("empty output bytes")
 		}
 
 		outputTypeID := outputBytes[0]

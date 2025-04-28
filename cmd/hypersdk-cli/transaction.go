@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ var txCmd = &cobra.Command{
 
 		// 4. get action name from args
 		if len(args) == 0 {
-			return fmt.Errorf("action name is required")
+			return errors.New("action name is required")
 		}
 		actionName := args[0]
 		spec, ok := abi.FindActionSpecByName(actionName)
