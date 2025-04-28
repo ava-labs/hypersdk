@@ -81,9 +81,9 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to marshal action: %w", err)
 		}
 
-		typeID, err := abi.GetActionID(actionName)
-		if err != nil {
-			return fmt.Errorf("failed to get action ID: %w", err)
+		typeID, found := abi.GetActionID(actionName)
+		if !found {
+			return fmt.Errorf("failed to get action ID: %s", actionName)
 		}
 
 		actionBytes = append([]byte{typeID}, actionBytes...)

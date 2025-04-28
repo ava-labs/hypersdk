@@ -61,9 +61,9 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to find action spec: %s", actionName)
 		}
 
-		typeID, err := abi.GetActionID(actionName)
-		if err != nil {
-			return fmt.Errorf("failed to get action ID: %w", err)
+		typeID, found := abi.GetActionID(actionName)
+		if !found {
+			return fmt.Errorf("failed to get action ID: %s", actionName)
 		}
 
 		// 5. create action using kvPairs

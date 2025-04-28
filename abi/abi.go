@@ -3,9 +3,9 @@
 
 package abi
 
-import (
-	"fmt"
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
 
+import (
 	"github.com/StephenButtolph/canoto"
 
 	"github.com/ava-labs/hypersdk/chain"
@@ -13,15 +13,17 @@ import (
 )
 
 type ABI struct {
-	ActionsSpec []*canoto.Spec `serialize:"true" json:"actionsSpec"`
-	OutputsSpec []*canoto.Spec `serialize:"true" json:"outputsSpec"`
+	ActionsSpec []*canoto.Spec `canoto:"repeated pointer,1" json:"actionsSpec"`
+	OutputsSpec []*canoto.Spec `canoto:"repeated pointer,2" json:"outputsSpec"`
 
-	ActionTypes []codec.TypedStruct `serialize:"true" json:"actionTypes"`
-	OutputTypes []codec.TypedStruct `serialize:"true" json:"outputTypes"`
+	ActionTypes []codec.TypedStruct `canoto:"repeated value,3" json:"actionTypes"`
+	OutputTypes []codec.TypedStruct `canoto:"repeated value,4" json:"outputTypes"`
+
+	canotoData canotoData_ABI
 }
 
-func NewABI(actionParser *codec.CanotoParser[chain.Action], outputParser *codec.CanotoParser[codec.Typed]) ABI {
-	return ABI{
+func NewABI(actionParser *codec.CanotoParser[chain.Action], outputParser *codec.CanotoParser[codec.Typed]) *ABI {
+	return &ABI{
 		ActionsSpec: actionParser.GetRegisteredTypes(),
 		OutputsSpec: outputParser.GetRegisteredTypes(),
 		ActionTypes: actionParser.GetTypedStructs(),
@@ -29,7 +31,7 @@ func NewABI(actionParser *codec.CanotoParser[chain.Action], outputParser *codec.
 	}
 }
 
-func (t ABI) CalculateCanotoSpec() {
+func (t *ABI) CalculateCanotoSpec() {
 	for i := range t.ActionsSpec {
 		t.ActionsSpec[i].CalculateCanotoCache()
 	}
@@ -38,7 +40,7 @@ func (t ABI) CalculateCanotoSpec() {
 	}
 }
 
-func (t ABI) FindActionSpecByName(name string) (*canoto.Spec, bool) {
+func (t *ABI) FindActionSpecByName(name string) (*canoto.Spec, bool) {
 	for _, spec := range t.ActionsSpec {
 		if spec.Name == name {
 			return spec, true
@@ -47,14 +49,14 @@ func (t ABI) FindActionSpecByName(name string) (*canoto.Spec, bool) {
 	return nil, false
 }
 
-func (t ABI) FindOutputSpecByID(id uint8) (*canoto.Spec, bool) {
+func (t *ABI) FindOutputSpecByID(id uint8) (*canoto.Spec, bool) {
 	var (
-		typ   codec.TypedStruct
-		found bool
+		typeName string
+		found    bool
 	)
-	for _, types := range t.OutputTypes {
-		if types.ID == id {
-			typ = types
+	for i := range t.OutputTypes {
+		if t.OutputTypes[i].ID == id {
+			typeName = t.OutputTypes[i].Name
 			found = true
 			break
 		}
@@ -65,7 +67,7 @@ func (t ABI) FindOutputSpecByID(id uint8) (*canoto.Spec, bool) {
 	}
 
 	for _, spec := range t.OutputsSpec {
-		if spec.Name == typ.Name {
+		if spec.Name == typeName {
 			return spec, true
 		}
 	}
@@ -73,20 +75,20 @@ func (t ABI) FindOutputSpecByID(id uint8) (*canoto.Spec, bool) {
 	return nil, false
 }
 
-func (t ABI) GetActionID(name string) (uint8, error) {
-	for _, spec := range t.ActionTypes {
-		if spec.Name == name {
-			return spec.ID, nil
+func (t *ABI) GetActionID(name string) (uint8, bool) {
+	for i := range t.ActionTypes {
+		if t.ActionTypes[i].Name == name {
+			return t.ActionTypes[i].ID, true
 		}
 	}
-	return 0, fmt.Errorf("action %s not found", name)
+	return 0, false
 }
 
-func (t ABI) GetOutputID(name string) (uint8, error) {
-	for _, spec := range t.OutputTypes {
-		if spec.Name == name {
-			return spec.ID, nil
+func (t *ABI) GetOutputID(name string) (uint8, bool) {
+	for i := range t.OutputTypes {
+		if t.OutputTypes[i].Name == name {
+			return t.OutputTypes[i].ID, true
 		}
 	}
-	return 0, fmt.Errorf("output %s not found", name)
+	return 0, false
 }
