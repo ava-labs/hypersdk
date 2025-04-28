@@ -542,7 +542,9 @@ func (v *VM[I, O, A]) addCloser(name string, closer func() error) {
 	v.closers = append(v.closers, namedCloser{name, closer})
 }
 
-// GetInputCovariantVM returns *InputCovariantVM[I, O, A]
+// GetInputCovariantVM returns a covariant view of the VM that only exposes
+// operations that are valid on input blocks. This ensures type safety by
+// restricting operations to those that make sense for blocks in the input state.
 func (v *VM[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
 	return &InputCovariantVM[I, O, A]{vm: v}
 }
