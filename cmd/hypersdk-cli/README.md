@@ -151,6 +151,8 @@ If `--sender` isn't provided, the address associated with the private key in
     - `[x]byte`
 - The CLI supports ED25519 keys only.
 - If `--data` is supplied or JSON output is selected, the CLI will not ask for action arguments interactively.
+- Currently, passing in zero values (e.g. `codec.EmptyAddress`) to the CLI will
+  result in errors when unmarshaling actions/outputs. This is a known [issue](https://github.com/StephenButtolph/canoto/issues/117) in Canoto.
 
 ## Known Issues
 
