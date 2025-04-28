@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -63,7 +62,7 @@ var readCmd = &cobra.Command{
 
 		// 4. get action name from args
 		if len(args) == 0 {
-			return errors.New("action name is required")
+			return fmt.Errorf("action name is required")
 		}
 		actionName := args[0]
 		spec, ok := abi.FindActionSpecByName(actionName)
@@ -71,12 +70,13 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to find action spec: %s", actionName)
 		}
 
-		a, err := fillAction(cmd, spec)
+		// 5. create action using kvPairs
+		action, err := fillAction(cmd, spec)
 		if err != nil {
 			return fmt.Errorf("failed to fill action: %w", err)
 		}
 
-		actionBytes, err := canoto.Marshal(spec, a)
+		actionBytes, err := canoto.Marshal(spec, action)
 		if err != nil {
 			return fmt.Errorf("failed to marshal action: %w", err)
 		}
@@ -93,14 +93,22 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to execute action: %w", err)
 		}
 
-		b := results[0]
-		outputTypeID := b[0]
+		if len(results) == 0 {
+			return fmt.Errorf("no results returned")
+		}
+
+		outputBytes := results[0]
+		if len(outputBytes) == 0 {
+			return fmt.Errorf("empty output bytes")
+		}
+
+		outputTypeID := outputBytes[0]
 		outputSpec, ok := abi.FindOutputSpecByID(outputTypeID)
 		if !ok {
 			return fmt.Errorf("failed to find output spec: %d", outputTypeID)
 		}
 
-		output, err := unmarshalOutput(outputSpec, b[1:])
+		output, err := unmarshalOutput(outputSpec, outputBytes[1:])
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal output: %w", err)
 		}

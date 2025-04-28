@@ -117,7 +117,7 @@ hypersdk-cli read Transfer
 Send a transaction with a single action.
 
 ```bash
-hypersdk-cli tx Transfer --data to=0x003d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a74e575a5a,value=12,memo=0x001234
+hypersdk-cli tx Transfer --data To=0x003d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a74e575a5a,Value=12,Memo=0x001234
 ```
 
 For interactive input:
