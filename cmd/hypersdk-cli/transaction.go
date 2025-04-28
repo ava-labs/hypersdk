@@ -61,8 +61,8 @@ var txCmd = &cobra.Command{
 			return fmt.Errorf("failed to find action spec: %s", actionName)
 		}
 
-		typeID, found := abi.GetActionID(actionName)
-		if !found {
+		typeID, ok := abi.GetActionID(actionName)
+		if !ok {
 			return fmt.Errorf("failed to get action ID: %s", actionName)
 		}
 
@@ -107,11 +107,11 @@ var txCmd = &cobra.Command{
 				return fmt.Errorf("context expired while waiting for tx: %w", err)
 			}
 
-			resp, found, err := indexerClient.GetTxResults(ctx, expectedTxID)
+			resp, ok, err := indexerClient.GetTxResults(ctx, expectedTxID)
 			if err != nil {
 				return fmt.Errorf("failed to get tx: %w", err)
 			}
-			if found {
+			if ok {
 				getTxResponse = resp
 				break
 			}

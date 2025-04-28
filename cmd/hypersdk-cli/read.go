@@ -66,8 +66,8 @@ var readCmd = &cobra.Command{
 			return errors.New("action name is required")
 		}
 		actionName := args[0]
-		spec, found := abi.FindActionSpecByName(actionName)
-		if !found {
+		spec, ok := abi.FindActionSpecByName(actionName)
+		if !ok {
 			return fmt.Errorf("failed to find action spec: %s", actionName)
 		}
 
@@ -81,8 +81,8 @@ var readCmd = &cobra.Command{
 			return fmt.Errorf("failed to marshal action: %w", err)
 		}
 
-		typeID, found := abi.GetActionID(actionName)
-		if !found {
+		typeID, ok := abi.GetActionID(actionName)
+		if !ok {
 			return fmt.Errorf("failed to get action ID: %s", actionName)
 		}
 
