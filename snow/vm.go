@@ -1,6 +1,27 @@
 // Copyright (C) 2024, Ava Labs, Inv. All rights reserved.
 // See the file LICENSE for licensing terms.
 
+// Package snow provides a simplified interface ([snow.Chain]) for building Virtual Machines (VMs)
+// on the Avalanche network by abstracting away the complexities of the consensus engine.
+// It handles consensus integration and provides a slimmed-down interface for VM developers to implement.
+//
+// # Core Concepts
+//
+// Snow introduces a type-safe block state system using generics to represent the
+// different states a block can be in during consensus:
+//
+//   - Block: The basic interface for blocks, requiring methods like GetID(), GetParent(), etc.
+//   - Input (I): Unverified blocks that have been parsed but not validated
+//   - Output (O): Verified blocks that have passed validation
+//   - Accepted (A): Blocks that have been accepted by consensus and committed to the chain
+//
+// # Benefits
+//
+// By using the snow package, VM developers can:
+//   - Focus on application-specific (VM) logic rather than consensus details
+//   - Work with type-safe block representations at each stage
+//   - Avoid common pitfalls in consensus integration
+//   - Leverage built-in health checks, metrics, and state sync
 package snow
 
 import (
@@ -33,6 +54,9 @@ import (
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
+// ChainInput contains all external dependencies and configuration needed to
+// initialize a Chain. It provides access to consensus context, network communication,
+// initialization data (genesis/upgrade), tracing, and configuration.
 type ChainInput struct {
 	SnowCtx                    *snow.Context
 	GenesisBytes, UpgradeBytes []byte
@@ -47,7 +71,7 @@ type ChainInput struct {
 // only needs to provide a way to initialize itself with all of the provided inputs, define concrete types
 // for each state that a block could be in from the perspective of the consensus engine, and state
 // transition functions between each of those types.
-type Chain[I Block, O Block, A Block] interface {
+type Chain[Input Block, Output Block, Accepted Block] interface {
 	// Initialize initializes the chain, optionally configures the VM via app, and returns
 	// a persistent index of the chain's input block type, the last output and accetped block,
 	// and whether or not the VM is currently in a valid state. If stateReady is false, the VM
@@ -55,29 +79,29 @@ type Chain[I Block, O Block, A Block] interface {
 	Initialize(
 		ctx context.Context,
 		chainInput ChainInput,
-		vm *VM[I, O, A],
-	) (inputChainIndex ChainIndex[I], lastOutput O, lastAccepted A, stateReady bool, err error)
+		vm *VM[Input, Output, Accepted],
+	) (inputChainIndex ChainIndex[Input], lastOutput Output, lastAccepted Accepted, stateReady bool, err error)
 	// SetConsensusIndex sets the ChainIndex[I, O, A} on the VM to provide the
 	// VM with:
 	// 1. A cached index of the chain
 	// 2. The ability to fetch the latest consensus state (preferred output block and last accepted block)
-	SetConsensusIndex(consensusIndex *ConsensusIndex[I, O, A])
+	SetConsensusIndex(consensusIndex *ConsensusIndex[Input, Output, Accepted])
 	// BuildBlock returns a new input and output block built on top of the provided parent.
 	// The provided parent will be the current preference of the consensus engine.
-	BuildBlock(ctx context.Context, blockContext *block.Context, parent O) (I, O, error)
+	BuildBlock(ctx context.Context, blockContext *block.Context, parent Output) (Input, Output, error)
 	// ParseBlock parses the provided bytes into an input block.
-	ParseBlock(ctx context.Context, bytes []byte) (I, error)
+	ParseBlock(ctx context.Context, bytes []byte) (Input, error)
 	// VerifyBlock verifies the provided block is valid given its already verified parent
 	// and returns the resulting output of executing the block.
 	VerifyBlock(
 		ctx context.Context,
-		parent O,
-		block I,
-	) (O, error)
+		parent Output,
+		block Input,
+	) (Output, error)
 	// AcceptBlock marks block as accepted and returns the resulting Accepted block type.
 	// AcceptBlock is guaranteed to be called after the input block has been persisted
 	// to disk.
-	AcceptBlock(ctx context.Context, acceptedParent A, block O) (A, error)
+	AcceptBlock(ctx context.Context, acceptedParent Accepted, block Output) (Accepted, error)
 }
 
 type namedCloser struct {
@@ -85,30 +109,27 @@ type namedCloser struct {
 	close func() error
 }
 
-type VM[I Block, O Block, A Block] struct {
+// VM implements the AvalancheGo common.VM interface by wrapping a custom Chain implementation.
+// It manages the block lifecycle (parsing, verification, acceptance), handles consensus
+// integration, maintains caching layers, and provides state synchronization by implementing block.StateSyncableVM.
+// This design allows developers to focus on application logic while the VM handles
+// consensus complexities.
+type VM[Input Block, Output Block, Accepted Block] struct {
 	handlers        map[string]http.Handler
 	network         *p2p.Network
 	stateSyncableVM block.StateSyncableVM
 	closers         []namedCloser
 
-	// onNormalOperationsStarted contains callbacks that execute when the VM transitions
-	// to normal operation, either after bootstrapping or state sync completion.
+	onStateSyncStarted        []func(context.Context) error
+	onBootstrapStarted        []func(context.Context) error
 	onNormalOperationsStarted []func(context.Context) error
 
-	// onBootstrapStarted contains callbacks that execute when the VM begins
-	// bootstrapping state from the network.
-	onBootstrapStarted []func(context.Context) error
-
-	// onStateSyncStarted contains callbacks that execute when the VM begins
-	// state sync to synchronize with the network's state.
-	onStateSyncStarted []func(context.Context) error
-
-	verifiedSubs         []event.Subscription[O]
-	rejectedSubs         []event.Subscription[O]
-	acceptedSubs         []event.Subscription[A]
-	preReadyAcceptedSubs []event.Subscription[I]
+	verifiedSubs         []event.Subscription[Output]
+	rejectedSubs         []event.Subscription[Output]
+	acceptedSubs         []event.Subscription[Accepted]
+	preReadyAcceptedSubs []event.Subscription[Input]
 	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
-	preRejectedSubs []event.Subscription[I]
+	preRejectedSubs []event.Subscription[Input]
 	version         string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
@@ -119,31 +140,37 @@ type VM[I Block, O Block, A Block] struct {
 	//
 	// During this time, we must not allow any new blocks to be verified/accepted.
 	chainLock sync.Mutex
-	chain     Chain[I, O, A]
+	chain     Chain[Input, Output, Accepted]
 	ready     bool
 
-	inputChainIndex ChainIndex[I]
-	consensusIndex  *ConsensusIndex[I, O, A]
+	inputChainIndex ChainIndex[Input]
+	consensusIndex  *ConsensusIndex[Input, Output, Accepted]
 
 	snowCtx  *snow.Context
 	hconfig  hcontext.Config
 	vmConfig VMConfig
 
 	// We cannot use a map here because we may parse blocks up in the ancestry
-	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[I, O, A]]
+	parsedBlocks *avacache.LRU[ids.ID, *StatefulBlock[Input, Output, Accepted]]
 
 	// Each element is a block that passed verification but
 	// hasn't yet been accepted/rejected
-	verifiedL      sync.RWMutex
-	verifiedBlocks map[ids.ID]*StatefulBlock[I, O, A]
+	verifiedL sync.RWMutex
+
+	// verifiedBlocks maintains a map of blocks that have passed verification but haven't yet been
+	// accepted or rejected by consensus. It serves multiple critical purposes:
+	// 1. Caches verified blocks
+	// 2. Tracks blocks vacuously verified during dynamic state sync that need verifyProcessingBlocks after FinishStateSync
+	// The map is protected by verifiedL to ensure thread-safety
+	verifiedBlocks map[ids.ID]*StatefulBlock[Input, Output, Accepted]
 
 	// We store the last [AcceptedBlockWindowCache] blocks in memory
 	// to avoid reading blocks from disk.
-	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[I, O, A]]
+	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[Input, Output, Accepted]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
 	metaLock          sync.Mutex
-	lastAcceptedBlock *StatefulBlock[I, O, A]
+	lastAcceptedBlock *StatefulBlock[Input, Output, Accepted]
 	preferredBlkID    ids.ID
 
 	metrics *Metrics
@@ -155,6 +182,10 @@ type VM[I Block, O Block, A Block] struct {
 	healthCheckers sync.Map
 }
 
+// NewVM creates a VM adapter that wraps a custom Chain implementation.
+// This allows blockchain developers to focus on application-specific logic
+// through the Chain interface while the snow package handles all
+// consensus engine integration and complexity.
 func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[I, O, A] {
 	return &VM[I, O, A]{
 		handlers: make(map[string]http.Handler),
@@ -163,6 +194,10 @@ func NewVM[I Block, O Block, A Block](version string, chain Chain[I, O, A]) *VM[
 	}
 }
 
+// Initialize initializes the chain, optionally configures the VM via app, and returns
+// a persistent index of the chain's input block type, the last output and accetped block,
+// and whether or not the VM is currently in a valid state. If stateReady is false, the VM
+// must be mid-state sync, such that it does not have a valid last output or accepted block.
 func (v *VM[I, O, A]) Initialize(
 	ctx context.Context,
 	chainCtx *snow.Context,
@@ -288,6 +323,12 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
 }
 
+// GetBlock retrieves a block by its ID following a specific lookup hierarchy:
+// 1. First checks the verified blocks map
+// 2. Then looks in the accepted blocks cache for recently accepted blocks
+// 3. Finally falls back to retrieving from persistent storage if needed
+// The returned StatefulBlock will have the appropriate state fields populated
+// based on where it was found in the hierarchy.
 func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlock")
 	defer span.End()
@@ -315,6 +356,8 @@ func (v *VM[I, O, A]) GetBlock(ctx context.Context, blkID ids.ID) (*StatefulBloc
 	return NewInputBlock(v, blk), nil
 }
 
+// GetBlockByHeight attempts to retrieve an accepted block by height from the accepted blocks cache.
+// Fallbacks to GetBlock
 func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockByHeight")
 	defer span.End()
@@ -340,6 +383,7 @@ func (v *VM[I, O, A]) GetBlockByHeight(ctx context.Context, height uint64) (*Sta
 	return v.GetBlock(ctx, blkID)
 }
 
+// ParseBlock parses a block from bytes and returns a NewInputBlock
 func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBlock[I, O, A], error) {
 	ctx, span := v.tracer.Start(ctx, "VM.ParseBlock")
 	defer span.End()
@@ -365,10 +409,16 @@ func (v *VM[I, O, A]) ParseBlock(ctx context.Context, bytes []byte) (*StatefulBl
 	return blk, nil
 }
 
+// BuildBlockWithContext attempts to BuildBlock with block.Context
 func (v *VM[I, O, A]) BuildBlockWithContext(ctx context.Context, blockCtx *block.Context) (*StatefulBlock[I, O, A], error) {
 	return v.buildBlock(ctx, blockCtx)
 }
 
+// BuildBlock constructs a new block on top of the current preferred tip of the chain.
+// It assembles and executes transactions from the mempool against the parent state,
+// creating a fully verified StatefulBlock ready for consensus. Verification happens
+// during construction, making the block immediately proposable regardless of the
+// node's role as validator or producer.
 func (v *VM[I, O, A]) BuildBlock(ctx context.Context) (*StatefulBlock[I, O, A], error) {
 	return v.buildBlock(ctx, nil)
 }
@@ -399,10 +449,12 @@ func (v *VM[I, O, A]) buildBlock(ctx context.Context, blockCtx *block.Context) (
 	return sb, nil
 }
 
+// LastAcceptedBlock returns the last accepted block
 func (v *VM[I, O, A]) LastAcceptedBlock(_ context.Context) *StatefulBlock[I, O, A] {
 	return v.lastAcceptedBlock
 }
 
+// GetBlockIDAtHeight returns the ID of the block at the given height
 func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) (ids.ID, error) {
 	ctx, span := v.tracer.Start(ctx, "VM.GetBlockIDAtHeight")
 	defer span.End()
@@ -416,6 +468,7 @@ func (v *VM[I, O, A]) GetBlockIDAtHeight(ctx context.Context, blkHeight uint64) 
 	return v.inputChainIndex.GetBlockIDAtHeight(ctx, blkHeight)
 }
 
+// SetPreference updates the VM's preferred block ID based on the consensus engine's decision.
 func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	v.metaLock.Lock()
 	defer v.metaLock.Unlock()
@@ -424,10 +477,12 @@ func (v *VM[I, O, A]) SetPreference(_ context.Context, blkID ids.ID) error {
 	return nil
 }
 
+// LastAccepted returns ID of the last accepted block
 func (v *VM[I, O, A]) LastAccepted(context.Context) (ids.ID, error) {
 	return v.lastAcceptedBlock.ID(), nil
 }
 
+// SetState sets the state of the VM
 func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	v.log.Info("Setting state to %s", zap.Stringer("state", state))
 	switch state {
@@ -457,10 +512,13 @@ func (v *VM[I, O, A]) SetState(ctx context.Context, state snow.State) error {
 	}
 }
 
+// CreateHandlers returns a map of HTTP handlers for the VM that can be used to interact with it over HTTP.
+// CreateHandlers is a core implementation of common.VM
 func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler, error) {
 	return v.handlers, nil
 }
 
+// Shutdown shuts down the VM
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	v.log.Info("Shutting down VM")
 	close(v.shutdownChan)
@@ -475,6 +533,7 @@ func (v *VM[I, O, A]) Shutdown(context.Context) error {
 	return errors.Join(errs...)
 }
 
+// Version returns the version of the VM
 func (v *VM[I, O, A]) Version(context.Context) (string, error) {
 	return v.version, nil
 }
@@ -483,52 +542,68 @@ func (v *VM[I, O, A]) addCloser(name string, closer func() error) {
 	v.closers = append(v.closers, namedCloser{name, closer})
 }
 
+// GetInputCovariantVM returns a covariant view of the VM that only exposes
+// operations that are valid on input blocks. This ensures type safety by
+// restricting operations to those that make sense for blocks in the input state.
 func (v *VM[I, O, A]) GetInputCovariantVM() *InputCovariantVM[I, O, A] {
 	return &InputCovariantVM[I, O, A]{vm: v}
 }
 
+// GetNetwork returns VM's peer to peer network
 func (v *VM[I, O, A]) GetNetwork() *p2p.Network {
 	return v.network
 }
 
+// AddAcceptedSub adds subscriptions tracking accepted blocks
 func (v *VM[I, O, A]) AddAcceptedSub(sub ...event.Subscription[A]) {
 	v.acceptedSubs = append(v.acceptedSubs, sub...)
 }
 
+// AddRejectedSub adds subscriptions tracking rejected blocks
 func (v *VM[I, O, A]) AddRejectedSub(sub ...event.Subscription[O]) {
 	v.rejectedSubs = append(v.rejectedSubs, sub...)
 }
 
+// AddVerifiedSub adds subscriptions tracking verified blocks
 func (v *VM[I, O, A]) AddVerifiedSub(sub ...event.Subscription[O]) {
 	v.verifiedSubs = append(v.verifiedSubs, sub...)
 }
 
+// AddPreReadyAcceptedSub adds subscriptions tracking accepted blocks during state sync
 func (v *VM[I, O, A]) AddPreReadyAcceptedSub(sub ...event.Subscription[I]) {
 	v.preReadyAcceptedSubs = append(v.preReadyAcceptedSubs, sub...)
 }
 
-// AddPreRejectedSub adds subscriptions tracking rejected blocks that were
-// vacuously verified during state sync before the VM had the state to verify them
+// AddPreRejectedSub registers subscriptions that are notified when blocks are rejected
+// after state sync.
+//
+// These subscriptions track blocks that were vacuously verified during state sync but later
+// determined to be invalid or rejected by consensus
 func (v *VM[I, O, A]) AddPreRejectedSub(sub ...event.Subscription[I]) {
 	v.preRejectedSubs = append(v.preRejectedSubs, sub...)
 }
 
+// AddHandler adds a handler to the VM's http server.
 func (v *VM[I, O, A]) AddHandler(name string, handler http.Handler) {
 	v.handlers[name] = handler
 }
 
+// AddCloser adds a function called when the VM is shutting down
 func (v *VM[I, O, A]) AddCloser(name string, closer func() error) {
 	v.addCloser(name, closer)
 }
 
-// AddStateSyncStarter registers a callback that will be executed when the engine invokes SetState(snow.StateSyncing)
-// i.e., when it's in state sync operation
+// AddStateSyncStarter adds a function called when the VM transitions to the state sync state
 func (v *VM[I, O, A]) AddStateSyncStarter(onStateSyncStarted ...func(context.Context) error) {
 	v.onStateSyncStarted = append(v.onStateSyncStarted, onStateSyncStarted...)
 }
 
-// AddNormalOpStarter registers a callback that will be executed when the engine invokes SetState(snow.NormalOp)
-// i.e., transitioning from state sync / bootstrapping to normal operation.
+// AddBootstrapStarter adds a function called when the VM transitions to the bootstrap state
+func (v *VM[I, O, A]) AddBootstrapStarter(onBootstrapStartedF ...func(context.Context) error) {
+	v.onBootstrapStarted = append(v.onBootstrapStarted, onBootstrapStartedF...)
+}
+
+// AddNormalOpStarter adds a function called when the VM transitions to the normal operation state
 func (v *VM[I, O, A]) AddNormalOpStarter(onNormalOpStartedF ...func(context.Context) error) {
 	v.onNormalOperationsStarted = append(v.onNormalOperationsStarted, onNormalOpStartedF...)
 }
