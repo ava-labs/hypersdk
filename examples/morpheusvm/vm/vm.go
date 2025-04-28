@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ActionParser *codec.TParser[chain.Action]
-	AuthParser   *codec.TParser[chain.Auth]
-	OutputParser *codec.TParser[codec.Typed]
+	ActionParser *codec.CanotoParser[chain.Action]
+	AuthParser   *codec.CanotoParser[chain.Auth]
+	OutputParser *codec.CanotoParser[codec.Typed]
 
 	AuthProvider *auth.AuthProvider
 
@@ -29,9 +29,9 @@ var (
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTParser[chain.Action]()
-	AuthParser = codec.NewTParser[chain.Auth]()
-	OutputParser = codec.NewTParser[codec.Typed]()
+	ActionParser = codec.NewCanotoParser[chain.Action]()
+	AuthParser = codec.NewCanotoParser[chain.Auth]()
+	OutputParser = codec.NewCanotoParser[codec.Typed]()
 	AuthProvider = auth.NewAuthProvider()
 
 	if err := auth.WithDefaultPrivateKeyFactories(AuthProvider); err != nil {

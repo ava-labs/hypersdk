@@ -55,7 +55,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	he2e.SetWorkload(
 		testingNetworkConfig,
 		generator,
-		abi.NewTempABI(vm.ActionParser, vm.OutputParser),
+		abi.NewABI(vm.ActionParser, vm.OutputParser),
 		authFactories[2],
 		loadTxGenerators,
 		hload.ShortBurstOrchestratorConfig{
