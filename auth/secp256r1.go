@@ -7,6 +7,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -66,12 +67,16 @@ func (d *SECP256R1) Sponsor() codec.Address {
 }
 
 func (d *SECP256R1) Bytes() []byte {
-	return d.MarshalCanoto()
+	return append([]byte{d.GetTypeID()}, d.MarshalCanoto()...)
 }
 
 func UnmarshalSECP256R1(bytes []byte) (chain.Auth, error) {
+	if bytes[0] != SECP256R1ID {
+		return nil, fmt.Errorf("unexpected secp256r1 typeID: %d != %d", bytes[0], SECP256R1ID)
+	}
+
 	secp256r1 := &SECP256R1{}
-	if err := secp256r1.UnmarshalCanoto(bytes); err != nil {
+	if err := secp256r1.UnmarshalCanoto(bytes[1:]); err != nil {
 		return nil, err
 	}
 	return secp256r1, nil

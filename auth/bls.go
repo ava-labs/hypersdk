@@ -7,6 +7,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -69,12 +70,16 @@ func (b *BLS) Sponsor() codec.Address {
 }
 
 func (b *BLS) Bytes() []byte {
-	return b.MarshalCanoto()
+	return append([]byte{BLSID}, b.MarshalCanoto()...)
 }
 
 func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
+	if bytes[0] != BLSID {
+		return nil, fmt.Errorf("unexpected BLS typeID: %d != %d", bytes[0], BLSID)
+	}
+
 	b := &BLS{}
-	if err := b.UnmarshalCanoto(bytes); err != nil {
+	if err := b.UnmarshalCanoto(bytes[1:]); err != nil {
 		return nil, err
 	}
 

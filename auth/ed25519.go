@@ -7,6 +7,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -70,6 +71,10 @@ func (d *ED25519) Bytes() []byte {
 }
 
 func UnmarshalED25519(bytes []byte) (chain.Auth, error) {
+	if bytes[0] != ED25519ID {
+		return nil, fmt.Errorf("unexpected ed25519 typeID: %d != %d", bytes[0], ED25519ID)
+	}
+
 	ed25519 := &ED25519{}
 	if err := ed25519.UnmarshalCanoto(bytes[1:]); err != nil {
 		return nil, err
