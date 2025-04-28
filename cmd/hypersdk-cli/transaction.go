@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/StephenButtolph/canoto"
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/spf13/cobra"
 
-	"github.com/ava-labs/hypersdk/abi/dynamic"
 	"github.com/ava-labs/hypersdk/api/indexer"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
 	"github.com/ava-labs/hypersdk/auth"
@@ -50,36 +50,34 @@ var txCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to get abi: %w", err)
 		}
+
 		// 4. get action name from args
 		if len(args) == 0 {
 			return errors.New("action name is required")
 		}
 		actionName := args[0]
-		_, found := abi.FindActionByName(actionName)
-		if !found {
-			return fmt.Errorf("failed to find action: %s", actionName)
+		spec, ok := abi.FindActionSpecByName(actionName)
+		if !ok {
+			return fmt.Errorf("failed to find action spec: %s", actionName)
 		}
 
-		typ, found := abi.FindTypeByName(actionName)
-		if !found {
-			return fmt.Errorf("failed to find type: %s", actionName)
+		typeID, err := abi.GetActionID(actionName)
+		if err != nil {
+			return fmt.Errorf("failed to get action ID: %w", err)
 		}
 
 		// 5. create action using kvPairs
-		kvPairs, err := fillAction(cmd, typ)
+		a, err := fillAction(cmd, spec)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to fill action: %w", err)
 		}
 
-		jsonPayload, err := json.Marshal(kvPairs)
-		if err != nil {
-			return fmt.Errorf("failed to marshal kvPairs: %w", err)
-		}
-
-		actionBytes, err := dynamic.Marshal(abi, actionName, string(jsonPayload))
+		actionBytes, err := canoto.Marshal(spec, a)
 		if err != nil {
 			return fmt.Errorf("failed to marshal action: %w", err)
 		}
+
+		actionBytes = append([]byte{typeID}, actionBytes...)
 
 		_, _, chainID, err := client.Network(ctx)
 		if err != nil {
@@ -109,35 +107,40 @@ var txCmd = &cobra.Command{
 				return fmt.Errorf("context expired while waiting for tx: %w", err)
 			}
 
-			getTxResponse, found, err = indexerClient.GetTxResults(ctx, expectedTxID)
+			resp, found, err := indexerClient.GetTxResults(ctx, expectedTxID)
 			if err != nil {
 				return fmt.Errorf("failed to get tx: %w", err)
 			}
 			if found {
+				getTxResponse = resp
 				break
 			}
 			time.Sleep(500 * time.Millisecond)
 		}
 
-		var resultStruct map[string]interface{}
-		if getTxResponse.Result.Success {
-			if len(getTxResponse.Result.Outputs) == 1 {
-				resultJSON, err := dynamic.UnmarshalOutput(abi, getTxResponse.Result.Outputs[0])
-				if err != nil {
-					return fmt.Errorf("failed to unmarshal result: %w", err)
-				}
+		if len(getTxResponse.Result.Outputs) == 0 {
+			return fmt.Errorf("no outputs found for tx: %s", expectedTxID)
+		}
 
-				err = json.Unmarshal([]byte(resultJSON), &resultStruct)
-				if err != nil {
-					return fmt.Errorf("failed to unmarshal result JSON: %w", err)
-				}
-			} else if len(getTxResponse.Result.Outputs) > 1 {
-				return fmt.Errorf("expected 1 output, got %d", len(getTxResponse.Result.Outputs))
-			}
+		b := getTxResponse.Result.Outputs[0]
+		if len(b) == 0 {
+			return fmt.Errorf("empty output for tx: %s", expectedTxID)
+		}
+
+		// Get type ID
+		outputTypeID := b[0]
+		outputSpec, ok := abi.FindOutputSpecByID(outputTypeID)
+		if !ok {
+			return fmt.Errorf("failed to find output spec: %d", outputTypeID)
+		}
+
+		output, err := unmarshalOutput(outputSpec, b[1:])
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal output: %w", err)
 		}
 
 		return printValue(cmd, txResponse{
-			Result:  resultStruct,
+			Result:  output,
 			Success: getTxResponse.Result.Success,
 			TxID:    expectedTxID,
 			Error:   string(getTxResponse.Result.Error),
@@ -146,24 +149,22 @@ var txCmd = &cobra.Command{
 }
 
 type txResponse struct {
-	Result  map[string]interface{} `json:"result"`
-	Success bool                   `json:"success"`
-	TxID    ids.ID                 `json:"txId"`
-	Error   string                 `json:"error"`
+	Result  canoto.Any `json:"result"`
+	Success bool       `json:"success"`
+	TxID    ids.ID     `json:"txId"`
+	Error   string     `json:"error"`
 }
 
 func (r txResponse) String() string {
 	var result strings.Builder
 	if r.Success {
 		result.WriteString(fmt.Sprintf("✅ Transaction successful (txID: %s)\n", r.TxID))
-		if r.Result != nil {
-			for key, value := range r.Result {
-				jsonValue, err := json.Marshal(value)
-				if err != nil {
-					jsonValue = []byte(fmt.Sprintf("%v", value))
-				}
-				result.WriteString(fmt.Sprintf("%s: %s\n", key, string(jsonValue)))
+		if len(r.Result.Fields) != 0 {
+			jsonValue, err := json.Marshal(r.Result)
+			if err != nil {
+				jsonValue = []byte(fmt.Sprintf("%v", r.Result))
 			}
+			result.WriteString(fmt.Sprintf("Result: %s\n", string(jsonValue)))
 		}
 	} else {
 		result.WriteString(fmt.Sprintf("❌ Transaction failed (txID: %s): %s\n", r.TxID, r.Error))

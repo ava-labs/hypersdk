@@ -38,35 +38,13 @@ type abiWrapper struct {
 
 func (a abiWrapper) String() string {
 	result := ""
-	for _, action := range a.ABI.Actions {
+	for _, action := range a.ABI.ActionsSpec {
 		result += fmt.Sprintf("---\n%s\n\n", action.Name)
-		typ, found := a.ABI.FindTypeByName(action.Name)
-		if !found {
-			result += fmt.Sprintf("  Error: Type not found for action %s\n", action.Name)
-			continue
-		} else {
-			result += "Inputs:\n"
-			for _, field := range typ.Fields {
-				result += fmt.Sprintf("  %s: %s\n", field.Name, field.Type)
-			}
-		}
-
-		output, found := a.ABI.FindOutputByID(action.ID)
-		if !found {
-			result += fmt.Sprintf("No outputs for %s with id %d\n", action.Name, action.ID)
-			continue
-		}
-
-		typ, found = a.ABI.FindTypeByName(output.Name)
-		if !found {
-			result += fmt.Sprintf("  Error: Type not found for output %s\n", output.Name)
-			continue
-		}
-		result += "\nOutputs:\n"
-		for _, field := range typ.Fields {
-			result += fmt.Sprintf("  %s: %s\n", field.Name, field.Type)
+		for i := range action.Fields {
+			result += fmt.Sprintf("  %s: %s\n", action.Fields[i].Name, getType(&action.Fields[i]))
 		}
 	}
+
 	return result
 }
 
