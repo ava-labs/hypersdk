@@ -43,11 +43,6 @@ func GetABI(ctx context.Context, require *require.Assertions, uris []string, exp
 		require.GreaterOrEqual(len(actualABI.ActionTypes), 1)
 		require.NotEmpty(actualABI.ActionTypes[0].Name)
 
-		// during unmarshaling, the cached values of canoto.Spec are not
-		// populated. calling CalculateCanotoSpec() will populate the cached
-		// values and will allow for comparison between the expected and actual abis
-		actualABI.CalculateCanotoSpec()
-
 		require.Equal(expectedABI, actualABI)
 	}
 }

@@ -122,6 +122,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 		nil,
 		resp,
 	)
+	resp.ABI.CalculateCanotoSpec()
 	return resp.ABI, err
 }
 
