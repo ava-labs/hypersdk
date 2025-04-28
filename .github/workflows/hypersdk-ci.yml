@@ -55,11 +55,10 @@ jobs:
       - name: Run actionlint
         shell: bash
         run: scripts/tests.actionlint.sh
-      - uses: ava-labs/avalanchego/.github/actions/install-nix@6626b41b013f2365b96bd66dfc8499ee4861d25b
       - name: Ensure consistent avalanchego version
         shell: bash
         run: |
-          nix develop --command bash -x scripts/update_avalanchego_version.sh
+          scripts/update_avalanchego_version.sh
           git diff --exit-code
 
   # This workflow job ensures generated code is up-to-date
@@ -153,7 +152,7 @@ jobs:
             go.sum
             examples/morpheusvm/go.sum
       - name: Run e2e tests
-        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@6626b41b013f2365b96bd66dfc8499ee4861d25b
+        uses: ava-labs/avalanchego/.github/actions/run-monitored-tmpnet-cmd@c8b3f57d2a2556d41ca6a0b2da11561b1d7bab75
         with:
           run: ./examples/morpheusvm/scripts/run.sh
           run_env: MODE='test'

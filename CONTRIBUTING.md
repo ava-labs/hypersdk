@@ -8,7 +8,11 @@ Thank you for your interest in contributing to `hypersdk`! By contributing to hy
 
 To contribute to `hypersdk`, you'll need:
 
-- [Go](https://golang.org/dl/) 1.22.8 or higher
+- [Go](https://golang.org/dl/) 1.23.7 or higher
+
+On MacOS, a modern version of bash is required (e.g. via [homebrew](https://brew.sh/) with `brew install bash`). The version installed by default is not compatible with HyperSDK's [shell scripts](scripts).
+
+An [optional dev shell](#optional-dev-shell) may be used to gain access to additional dependencies.
 
 ### Setting up your development environment
 
@@ -52,6 +56,23 @@ The `hypersdk` project also has a fixer that tries to help. To run the fixer, si
 ```go
 ./scripts/fix.lint.sh
 ```
+
+## Optional Dev Shell
+
+Some activities, such as collecting metrics and logs from the nodes targeted by an e2e
+test run, require binary dependencies. One way of making these dependencies available is
+to use a nix shell which will give access to the dependencies expected by the test
+tooling:
+
+ - Install [nix](https://nixos.org/). The [determinate systems
+   installer](https://github.com/DeterminateSystems/nix-installer?tab=readme-ov-file#install-nix)
+   is recommended.
+ - Use ./scripts/dev_shell.sh to start a nix shell
+ - Execute the dependency-requiring command (e.g. `ginkgo -v ./tests/e2e -- --start-collectors`)
+
+This repo also defines a `.envrc` file to configure [devenv](https://direnv.net/). With `devenv`
+and `nix` installed, a shell at the root of the hypersdk repo will automatically start a nix dev
+shell.
 
 ## Contributing
 

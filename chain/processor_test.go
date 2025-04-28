@@ -16,6 +16,7 @@ import (
 	"github.com/ava-labs/avalanchego/snow/engine/snowman/block"
 	"github.com/ava-labs/avalanchego/trace"
 	"github.com/ava-labs/avalanchego/utils/logging"
+	"github.com/ava-labs/avalanchego/utils/units"
 	"github.com/ava-labs/avalanchego/x/merkledb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -513,6 +514,103 @@ func TestProcessorExecute(t *testing.T) {
 			)
 			r.ErrorIs(err, tt.expectedErr)
 		})
+	}
+}
+
+func BenchmarkExecuteBlocks(b *testing.B) {
+	ruleFactory := chaintest.RuleFactory()
+	benchmarks := []struct {
+		name                   string
+		genesisGenerator       chaintest.GenesisGenerator[string]
+		stateAccessDistributor chaintest.StateAccessDistributor[string]
+		numTxsPerBlock         uint64
+	}{
+		{
+			name:                   "empty",
+			genesisGenerator:       noopGenesisF,
+			stateAccessDistributor: chaintest.NoopDistributor[string]{},
+		},
+		{
+			name:                   "parallel",
+			genesisGenerator:       uniqueKeyGenesisGenerator,
+			stateAccessDistributor: chaintest.NewParallelDistributor(actionConstructor{}, ruleFactory),
+			numTxsPerBlock:         16,
+		},
+		{
+			name:                   "serial",
+			genesisGenerator:       singleKeyGenesisGenerator,
+			stateAccessDistributor: chaintest.NewSerialDistributor(actionConstructor{}, ruleFactory),
+			numTxsPerBlock:         16,
+		},
+		{
+			name:                   "zipf",
+			genesisGenerator:       uniqueKeyGenesisGenerator,
+			stateAccessDistributor: chaintest.NewZipfDistributor(actionConstructor{}, ruleFactory),
+			numTxsPerBlock:         16,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			benchmark := &chaintest.BlockBenchmark[string]{
+				MetadataManager:        metadata.NewDefaultManager(),
+				BalanceHandler:         balance.NewPrefixBalanceHandler([]byte{metadata.DefaultMinimumPrefix}),
+				AuthEngines:            auth.DefaultEngines(),
+				RuleFactory:            chaintest.RuleFactory(),
+				GenesisF:               bm.genesisGenerator,
+				StateAccessDistributor: bm.stateAccessDistributor,
+				Config: chain.Config{
+					TargetBuildDuration:       100 * time.Millisecond,
+					TransactionExecutionCores: 4,
+					StateFetchConcurrency:     4,
+					TargetTxsSize:             1.5 * units.MiB,
+				},
+				NumBlocks:      1_000,
+				NumTxsPerBlock: bm.numTxsPerBlock,
+			}
+			benchmark.Run(context.Background(), b)
+		})
+	}
+}
+
+func noopGenesisF(uint64) ([]chain.AuthFactory, []string, genesis.Genesis, error) {
+	return nil, nil, genesis.NewDefaultGenesis(nil), nil
+}
+
+func uniqueKeyGenesisGenerator(numTxsPerBlock uint64) ([]chain.AuthFactory, []string, genesis.Genesis, error) {
+	factories, genesis, err := chaintest.CreateGenesis(numTxsPerBlock, 1_000_000, chaintest.ED25519Factory)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	keys := make([]string, numTxsPerBlock)
+	for i := range numTxsPerBlock {
+		keys[i] = string(binary.BigEndian.AppendUint16(nil, uint16(i)))
+	}
+
+	return factories, keys, genesis, nil
+}
+
+func singleKeyGenesisGenerator(numTxsPerBlock uint64) ([]chain.AuthFactory, []string, genesis.Genesis, error) {
+	factories, genesis, err := chaintest.CreateGenesis(numTxsPerBlock, 1_000_000, chaintest.ED25519Factory)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	keys := []string{string(binary.BigEndian.AppendUint16(nil, uint16(0)))}
+
+	return factories, keys, genesis, nil
+}
+
+type actionConstructor struct{}
+
+func (actionConstructor) Generate(k string, nonce uint64) chain.Action {
+	return &chaintest.TestAction{
+		Nonce:                        nonce,
+		SpecifiedStateKeys:           []string{k},
+		SpecifiedStateKeyPermissions: []state.Permissions{state.Write},
+		WriteKeys:                    [][]byte{[]byte(k)},
+		Start:                        -1,
+		End:                          -1,
 	}
 }
 
