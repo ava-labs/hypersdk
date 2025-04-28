@@ -21,8 +21,8 @@ var (
 )
 
 const (
-	canoto__BLS__Signer__tag    = "\x0a" // canoto.Tag(1, canoto.Len)
-	canoto__BLS__Signature__tag = "\x12" // canoto.Tag(2, canoto.Len)
+	canoto__BLS__SignerBytes__tag    = "\x0a" // canoto.Tag(1, canoto.Len)
+	canoto__BLS__SignatureBytes__tag = "\x12" // canoto.Tag(2, canoto.Len)
 )
 
 type canotoData_BLS struct {
@@ -30,30 +30,22 @@ type canotoData_BLS struct {
 }
 
 // CanotoSpec returns the specification of this canoto message.
-func (*BLS) CanotoSpec(types ...reflect.Type) *canoto.Spec {
-	types = append(types, reflect.TypeOf(BLS{}))
-	var zero BLS
+func (*BLS) CanotoSpec(...reflect.Type) *canoto.Spec {
 	s := &canoto.Spec{
 		Name: "BLS",
 		Fields: []canoto.FieldType{
-			canoto.FieldTypeFromField(
-				/*type inference:*/ (zero.Signer),
-				/*FieldNumber:   */ 1,
-				/*Name:          */ "Signer",
-				/*FixedLength:   */ 0,
-				/*Repeated:      */ false,
-				/*OneOf:         */ "",
-				/*types:         */ types,
-			),
-			canoto.FieldTypeFromField(
-				/*type inference:*/ (zero.Signature),
-				/*FieldNumber:   */ 2,
-				/*Name:          */ "Signature",
-				/*FixedLength:   */ 0,
-				/*Repeated:      */ false,
-				/*OneOf:         */ "",
-				/*types:         */ types,
-			),
+			{
+				FieldNumber: 1,
+				Name:        "SignerBytes",
+				OneOf:       "",
+				TypeBytes:   true,
+			},
+			{
+				FieldNumber: 2,
+				Name:        "SignatureBytes",
+				OneOf:       "",
+				TypeBytes:   true,
+			},
 		},
 	}
 	s.CalculateCanotoCache()
@@ -102,51 +94,23 @@ func (c *BLS) UnmarshalCanotoFrom(r canoto.Reader) error {
 				return canoto.ErrUnexpectedWireType
 			}
 
-			// Read the bytes for the field.
-			originalUnsafe := r.Unsafe
-			r.Unsafe = true
-			var msgBytes []byte
-			if err := canoto.ReadBytes(&r, &msgBytes); err != nil {
+			if err := canoto.ReadBytes(&r, &c.SignerBytes); err != nil {
 				return err
 			}
-			if len(msgBytes) == 0 {
+			if len(c.SignerBytes) == 0 {
 				return canoto.ErrZeroValue
 			}
-			r.Unsafe = originalUnsafe
-
-			// Unmarshal the field from the bytes.
-			remainingBytes := r.B
-			r.B = msgBytes
-			c.Signer = canoto.MakePointer(c.Signer)
-			if err := (c.Signer).UnmarshalCanotoFrom(r); err != nil {
-				return err
-			}
-			r.B = remainingBytes
 		case 2:
 			if wireType != canoto.Len {
 				return canoto.ErrUnexpectedWireType
 			}
 
-			// Read the bytes for the field.
-			originalUnsafe := r.Unsafe
-			r.Unsafe = true
-			var msgBytes []byte
-			if err := canoto.ReadBytes(&r, &msgBytes); err != nil {
+			if err := canoto.ReadBytes(&r, &c.SignatureBytes); err != nil {
 				return err
 			}
-			if len(msgBytes) == 0 {
+			if len(c.SignatureBytes) == 0 {
 				return canoto.ErrZeroValue
 			}
-			r.Unsafe = originalUnsafe
-
-			// Unmarshal the field from the bytes.
-			remainingBytes := r.B
-			r.B = msgBytes
-			c.Signature = canoto.MakePointer(c.Signature)
-			if err := (c.Signature).UnmarshalCanotoFrom(r); err != nil {
-				return err
-			}
-			r.B = remainingBytes
 		default:
 			return canoto.ErrUnknownField
 		}
@@ -167,12 +131,6 @@ func (c *BLS) ValidCanoto() bool {
 	if c == nil {
 		return true
 	}
-	if c.Signer != nil && !(c.Signer).ValidCanoto() {
-		return false
-	}
-	if c.Signature != nil && !(c.Signature).ValidCanoto() {
-		return false
-	}
 	return true
 }
 
@@ -183,17 +141,11 @@ func (c *BLS) CalculateCanotoCache() {
 		return
 	}
 	var size uint64
-	if c.Signer != nil {
-		(c.Signer).CalculateCanotoCache()
-		if fieldSize := (c.Signer).CachedCanotoSize(); fieldSize != 0 {
-			size += uint64(len(canoto__BLS__Signer__tag)) + canoto.SizeUint(fieldSize) + fieldSize
-		}
+	if len(c.SignerBytes) != 0 {
+		size += uint64(len(canoto__BLS__SignerBytes__tag)) + canoto.SizeBytes(c.SignerBytes)
 	}
-	if c.Signature != nil {
-		(c.Signature).CalculateCanotoCache()
-		if fieldSize := (c.Signature).CachedCanotoSize(); fieldSize != 0 {
-			size += uint64(len(canoto__BLS__Signature__tag)) + canoto.SizeUint(fieldSize) + fieldSize
-		}
+	if len(c.SignatureBytes) != 0 {
+		size += uint64(len(canoto__BLS__SignatureBytes__tag)) + canoto.SizeBytes(c.SignatureBytes)
 	}
 	c.canotoData.size.Store(size)
 }
@@ -235,19 +187,13 @@ func (c *BLS) MarshalCanotoInto(w canoto.Writer) canoto.Writer {
 	if c == nil {
 		return w
 	}
-	if c.Signer != nil {
-		if fieldSize := (c.Signer).CachedCanotoSize(); fieldSize != 0 {
-			canoto.Append(&w, canoto__BLS__Signer__tag)
-			canoto.AppendUint(&w, fieldSize)
-			w = (c.Signer).MarshalCanotoInto(w)
-		}
+	if len(c.SignerBytes) != 0 {
+		canoto.Append(&w, canoto__BLS__SignerBytes__tag)
+		canoto.AppendBytes(&w, c.SignerBytes)
 	}
-	if c.Signature != nil {
-		if fieldSize := (c.Signature).CachedCanotoSize(); fieldSize != 0 {
-			canoto.Append(&w, canoto__BLS__Signature__tag)
-			canoto.AppendUint(&w, fieldSize)
-			w = (c.Signature).MarshalCanotoInto(w)
-		}
+	if len(c.SignatureBytes) != 0 {
+		canoto.Append(&w, canoto__BLS__SignatureBytes__tag)
+		canoto.AppendBytes(&w, c.SignatureBytes)
 	}
 	return w
 }

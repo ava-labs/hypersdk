@@ -23,8 +23,11 @@ const (
 )
 
 type BLS struct {
-	Signer    *bls.PublicKey `canoto:"pointer,1" json:"signer,omitempty"`
-	Signature *bls.Signature `canoto:"pointer,2" json:"signature,omitempty"`
+	SignerBytes    []byte `canoto:"bytes,1" json:"signerBytes,omitempty"`
+	SignatureBytes []byte `canoto:"bytes,2" json:"signatureBytes,omitempty"`
+
+	Signer    *bls.PublicKey `json:"signer,omitempty"`
+	Signature *bls.Signature `json:"signature,omitempty"`
 
 	addr codec.Address
 
@@ -70,11 +73,26 @@ func (b *BLS) Bytes() []byte {
 }
 
 func UnmarshalBLS(bytes []byte) (chain.Auth, error) {
-	bls := &BLS{}
-	if err := bls.UnmarshalCanoto(bytes); err != nil {
+	b := &BLS{}
+	if err := b.UnmarshalCanoto(bytes); err != nil {
 		return nil, err
 	}
-	return bls, nil
+
+	// populate pointer fields
+	publicKey, err := bls.PublicKeyFromBytes(b.SignerBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	signature, err := bls.SignatureFromBytes(b.SignatureBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	b.Signer = publicKey
+	b.Signature = signature
+
+	return b, nil
 }
 
 var _ chain.AuthFactory = (*BLSFactory)(nil)
@@ -92,7 +110,15 @@ func (b *BLSFactory) Sign(msg []byte) (chain.Auth, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BLS{Signer: bls.PublicFromPrivateKey(b.priv), Signature: bls.NewSignature(signature)}, nil
+
+	signer := bls.PublicFromPrivateKey(b.priv)
+
+	return &BLS{
+		SignerBytes:    bls.PublicKeyToBytes(signer),
+		SignatureBytes: bls.SignatureToBytes(signature),
+		Signer:         signer,
+		Signature:      signature,
+	}, nil
 }
 
 func (*BLSFactory) MaxUnits() (uint64, uint64) {
