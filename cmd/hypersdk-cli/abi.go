@@ -16,9 +16,6 @@ import (
 	"github.com/ava-labs/hypersdk/codec"
 )
 
-// spec.Fields[i].Name             // Foo
-// spec.Fields[i].TypeMessage.Name // Bar
-
 func fillAction(cmd *cobra.Command, spec *canoto.Spec) (canoto.Any, error) {
 	// get key-value pairs
 	inputData, err := cmd.Flags().GetStringToString("data")
