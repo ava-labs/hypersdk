@@ -31,7 +31,7 @@ type BLS struct {
 
 	addr codec.Address
 
-	canotoData canotoData_BLS //nolint:revive
+	canotoData canotoData_BLS
 }
 
 func (b *BLS) address() codec.Address {

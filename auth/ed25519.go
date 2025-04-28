@@ -28,7 +28,7 @@ type ED25519 struct {
 
 	addr codec.Address
 
-	canotoData canotoData_ED25519 //nolint:revive
+	canotoData canotoData_ED25519
 }
 
 func (d *ED25519) address() codec.Address {

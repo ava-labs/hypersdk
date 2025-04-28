@@ -28,7 +28,7 @@ type SECP256R1 struct {
 
 	addr codec.Address
 
-	canotoData canotoData_SECP256R1 //nolint:revive
+	canotoData canotoData_SECP256R1
 }
 
 func (d *SECP256R1) address() codec.Address {
