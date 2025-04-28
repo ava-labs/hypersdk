@@ -140,7 +140,15 @@ If `--sender` isn't provided, the address associated with the private key in
 
 ## Notes
 
-- Only flat actions are supported. Arrays, slices, embedded structs, maps, and struct fields are not supported.
+- Only flat actions are supported. Futhermore, the following primitive field
+  types are supported:
+    - `int8, int16, int32, int64`
+    - `uint8, uint16, uint32, uint64`
+    - `bool`
+    - `string`
+    - `[]byte`
+    - `codec.Address`
+    - `[x]byte`
 - The CLI supports ED25519 keys only.
 - If `--data` is supplied or JSON output is selected, the CLI will not ask for action arguments interactively.
 
