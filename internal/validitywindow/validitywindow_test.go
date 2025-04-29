@@ -16,6 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newPopulatedValidityWindow(ctx context.Context, r *require.Assertions, blocks []executionBlock, head executionBlock, validityWindowDuration int64) *TimeValidityWindow[container] {
+	chainIndex := &testChainIndex{}
+	for _, blk := range blocks {
+		chainIndex.set(blk.GetID(), blk)
+	}
+
+	validityWindow, err := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, head, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
+
+	return validityWindow
+}
+
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -118,16 +132,7 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
-				return test.validityWindow
-			})
-			for i, blk := range test.blocks {
-				if i <= test.accepted {
-					validityWindow.Accept(blk)
-				}
-				chainIndex.set(blk.GetID(), blk)
-			}
+			validityWindow := newPopulatedValidityWindow(ctx, r, test.blocks, test.blocks[test.accepted], test.validityWindow)
 			r.ErrorIs(validityWindow.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock), test.expectedError)
 		})
 	}
@@ -275,16 +280,7 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
-				return test.validityWindow
-			})
-			for i, blk := range test.blocks {
-				if i <= test.accepted {
-					validityWindow.Accept(blk)
-				}
-				chainIndex.set(blk.GetID(), blk)
-			}
+			validityWindow := newPopulatedValidityWindow(ctx, r, test.blocks, test.blocks[test.accepted], test.validityWindow)
 			parent := test.blocks[len(test.blocks)-1]
 			if test.overrideParentBlock != nil {
 				parent = test.overrideParentBlock()
@@ -364,15 +360,16 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	chainIndex := &testChainIndex{}
-	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow[container](ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
-		return validityWindowDuration
-	})
-
 	// Create accepted genesis block
+	chainIndex := &testChainIndex{}
 	genesisBlk := newExecutionBlock(0, 0, []int64{1})
 	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+
+	validityWindowDuration := int64(10)
+	validityWindow, err := NewTimeValidityWindow[container](ctx, &logging.NoLog{}, trace.Noop, chainIndex, genesisBlk, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
 	validityWindow.Accept(genesisBlk)
 
 	blk1 := newExecutionBlock(1, 0, []int64{validityWindowDuration})
@@ -402,15 +399,16 @@ func TestAcceptHistorical(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 
-	chainIndex := &testChainIndex{}
-	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, nil, func(int64) int64 {
-		return validityWindowDuration
-	})
-
 	// Create and accept the genesis block to set an initial lastAcceptedBlockHeight
+	chainIndex := &testChainIndex{}
 	genesisBlk := newExecutionBlock(0, 0, []int64{})
 	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+
+	validityWindowDuration := int64(10)
+	validityWindow, err := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, genesisBlk, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
 	validityWindow.Accept(genesisBlk)
 	r.Equal(uint64(0), validityWindow.lastAcceptedBlockHeight)
 

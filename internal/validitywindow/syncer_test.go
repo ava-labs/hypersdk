@@ -267,14 +267,16 @@ func runSyncerTest(t *testing.T, test testCases) {
 	blkChain := generateTestChain(test.numOfBlocks)
 	chainIndex := test.setupChainIndex(blkChain)
 
-	validityWindow := NewTimeValidityWindow(
+	head := blkChain[len(blkChain)-1]
+	validityWindow, err := NewTimeValidityWindow(
 		ctx,
 		&logging.NoLog{},
 		trace.Noop,
 		chainIndex,
-		nil,
+		head,
 		func(_ int64) int64 { return test.validityWindow },
 	)
+	req.NoError(err)
 
 	fetcher := test.setupFetcher(blkChain)
 	syncer := NewSyncer[container, ExecutionBlock[container]](

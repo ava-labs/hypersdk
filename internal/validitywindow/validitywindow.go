@@ -22,6 +22,7 @@ import (
 
 var (
 	_                     Interface[emap.Item] = (*TimeValidityWindow[emap.Item])(nil)
+	ErrNilInitialBlock                         = errors.New("missing head block")
 	ErrDuplicateContainer                      = errors.New("duplicate container")
 	ErrMisalignedTime                          = errors.New("misaligned time")
 	ErrTimestampExpired                        = errors.New("declared timestamp expired")
@@ -84,9 +85,13 @@ func NewTimeValidityWindow[T emap.Item](
 	log logging.Logger,
 	tracer trace.Tracer,
 	chainIndex ChainIndex[T],
-	tip ExecutionBlock[T],
+	head ExecutionBlock[T],
 	getTimeValidityWindowF GetTimeValidityWindowFunc,
-) *TimeValidityWindow[T] {
+) (*TimeValidityWindow[T], error) {
+	if head == nil {
+		return nil, fmt.Errorf("cannot construct time validity window: %w", ErrNilInitialBlock)
+	}
+
 	t := &TimeValidityWindow[T]{
 		log:                   log,
 		tracer:                tracer,
@@ -94,10 +99,9 @@ func NewTimeValidityWindow[T emap.Item](
 		seen:                  emap.NewEMap[T](),
 		getTimeValidityWindow: getTimeValidityWindowF,
 	}
-	if tip != nil {
-		t.populate(ctx, tip)
-	}
-	return t
+
+	t.populate(ctx, head)
+	return t, nil
 }
 
 // Complete will attempt to complete a validity window.

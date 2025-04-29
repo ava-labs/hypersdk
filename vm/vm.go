@@ -62,7 +62,11 @@ const (
 	blockFetchHandleID   = 0x3
 )
 
-var ErrNotAdded = errors.New("not added")
+var (
+	errInconsistentValidityWindow = errors.New("critical error: validity window's partial state may lead to inconsistencies")
+
+	ErrNotAdded = errors.New("not added")
+)
 
 var (
 	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
@@ -299,7 +303,7 @@ func (vm *VM) Initialize(
 
 	executionBlockParser := chain.NewBlockParser(vm.Tracer(), vm.txParser)
 
-	if err := vm.initChainStore(executionBlockParser); err != nil {
+	if err := vm.initChainStore(ctx, executionBlockParser); err != nil {
 		return nil, nil, nil, false, err
 	}
 
@@ -308,9 +312,12 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to initialize last accepted block: %w", err)
 	}
 
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow[*chain.Transaction](ctx, vm.snowCtx.Log, vm.tracer, vm, lastAccepted, func(timestamp int64) int64 {
+	vm.chainTimeValidityWindow, err = validitywindow.NewTimeValidityWindow[*chain.Transaction](ctx, vm.snowCtx.Log, vm.tracer, vm, lastAccepted, func(timestamp int64) int64 {
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
 	})
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to initialize chain time validity window: %w", err)
+	}
 
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
@@ -371,7 +378,7 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 	vm.consensusIndex = consensusIndex
 }
 
-func (vm *VM) initChainStore(executionBlockParser *chain.BlockParser) error {
+func (vm *VM) initChainStore(ctx context.Context, executionBlockParser *chain.BlockParser) error {
 	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
@@ -386,7 +393,7 @@ func (vm *VM) initChainStore(executionBlockParser *chain.BlockParser) error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
-	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, executionBlockParser, chainStoreDB)
+	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](ctx, vm.snowCtx.Log, blockDBRegistry, config, executionBlockParser, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain index: %w", err)
 	}
@@ -566,7 +573,7 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 
 	isValidityWindowComplete := vm.chainTimeValidityWindow.Complete(ctx, executionBlk)
 	if !isValidityWindowComplete {
-		return errors.New("critical error: validity window's partial state may lead to inconsistencies")
+		return errInconsistentValidityWindow
 	}
 
 	vm.normalOp.Store(true)
