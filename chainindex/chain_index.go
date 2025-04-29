@@ -66,6 +66,7 @@ type Parser[T Block] interface {
 }
 
 func New[T Block](
+	ctx context.Context,
 	log logging.Logger,
 	registry prometheus.Registerer,
 	config Config,
@@ -90,7 +91,6 @@ func New[T Block](
 		parser:           parser,
 	}
 
-	ctx := context.Background()
 	return ci, ci.cleanupOnStartup(ctx)
 }
 
@@ -107,7 +107,9 @@ func (c *ChainIndex[T]) UpdateLastAccepted(ctx context.Context, blk T) error {
 
 	height := blk.GetHeight()
 	heightBytes := binary.BigEndian.AppendUint64(nil, height)
-	if err := errors.Join(batch.Put(lastAcceptedKey, heightBytes), c.writeBlock(batch, blk)); err != nil {
+	if err := errors.Join(
+		batch.Put(lastAcceptedKey, heightBytes),
+		c.writeBlock(batch, blk)); err != nil {
 		return err
 	}
 
@@ -227,6 +229,7 @@ func (c *ChainIndex[T]) cleanupOnStartup(ctx context.Context) error {
 	defer it.Release()
 
 	batch := c.db.NewBatch()
+	var lastDeletedHeight uint64
 
 	for it.Next() {
 		key := it.Key()
@@ -257,23 +260,32 @@ func (c *ChainIndex[T]) cleanupOnStartup(ctx context.Context) error {
 		}
 		c.metrics.deletedBlocks.Inc()
 
-		if height%c.config.BlockCompactionFrequency == c.compactionOffset {
-			go func() {
-				start := time.Now()
-				if err := c.db.Compact([]byte{blockPrefix}, prefixBlockKey(height)); err != nil {
-					c.log.Error("failed to compact block store", zap.Error(err))
-					return
-				}
-				c.log.Info("compacted disk blocks", zap.Uint64("end", height), zap.Duration("t", time.Since(start)))
-			}()
-		}
+		// Keep track of the last height we deleted
+		lastDeletedHeight = height
 	}
 
 	if err := it.Error(); err != nil {
 		return fmt.Errorf("iterator error during cleanup: %w", err)
 	}
 
-	return batch.Write()
+	// Write all the deletions
+	if err := batch.Write(); err != nil {
+		return err
+	}
+
+	// Perform a single compaction at the end if we deleted anything
+	if lastDeletedHeight > 0 {
+		go func() {
+			start := time.Now()
+			if err := c.db.Compact([]byte{blockPrefix}, prefixBlockKey(lastDeletedHeight)); err != nil {
+				c.log.Error("failed to compact block store", zap.Error(err))
+				return
+			}
+			c.log.Info("compacted disk blocks", zap.Uint64("end", lastDeletedHeight), zap.Duration("t", time.Since(start)))
+		}()
+	}
+
+	return nil
 }
 
 func prefixBlockKey(height uint64) []byte {

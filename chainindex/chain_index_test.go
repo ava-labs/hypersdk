@@ -38,8 +38,8 @@ func (*parser) ParseBlock(_ context.Context, b []byte) (*testBlock, error) {
 	return &testBlock{height: height}, nil
 }
 
-func newTestChainIndex(config Config, db database.Database) (*ChainIndex[*testBlock], error) {
-	return New(logging.NoLog{}, prometheus.NewRegistry(), config, &parser{}, db)
+func newTestChainIndex(ctx context.Context, config Config, db database.Database) (*ChainIndex[*testBlock], error) {
+	return New(ctx, logging.NoLog{}, prometheus.NewRegistry(), config, &parser{}, db)
 }
 
 func confirmBlockIndexed(r *require.Assertions, ctx context.Context, chainIndex *ChainIndex[*testBlock], expectedBlk *testBlock, expectedErr error) {
@@ -74,7 +74,7 @@ func confirmLastAcceptedHeight(r *require.Assertions, ctx context.Context, chain
 func TestChainIndex(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := newTestChainIndex(NewDefaultConfig(), memdb.New())
+	chainIndex, err := newTestChainIndex(ctx, NewDefaultConfig(), memdb.New())
 	r.NoError(err)
 
 	genesisBlk := &testBlock{height: 0}
@@ -93,14 +93,15 @@ func TestChainIndex(t *testing.T) {
 }
 
 func TestChainIndexInvalidCompactionFrequency(t *testing.T) {
-	_, err := newTestChainIndex(Config{BlockCompactionFrequency: 0}, memdb.New())
+	ctx := context.Background()
+	_, err := newTestChainIndex(ctx, Config{BlockCompactionFrequency: 0}, memdb.New())
 	require.ErrorIs(t, err, errBlockCompactionFrequencyZero)
 }
 
 func TestChainIndexExpiry(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := newTestChainIndex(Config{AcceptedBlockWindow: 1, BlockCompactionFrequency: 64}, memdb.New())
+	chainIndex, err := newTestChainIndex(ctx, Config{AcceptedBlockWindow: 1, BlockCompactionFrequency: 64}, memdb.New())
 	r.NoError(err)
 
 	genesisBlk := &testBlock{height: 0}
@@ -132,7 +133,7 @@ func TestChainIndexExpiry(t *testing.T) {
 func TestChainIndex_SaveHistorical(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
-	chainIndex, err := newTestChainIndex(NewDefaultConfig(), memdb.New())
+	chainIndex, err := newTestChainIndex(ctx, NewDefaultConfig(), memdb.New())
 	r.NoError(err)
 
 	// Create and save a genesis block normally first
@@ -279,7 +280,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 			r := require.New(t)
 			ctx := context.Background()
 
-			chainIndex, err := newTestChainIndex(test.config, memdb.New())
+			chainIndex, err := newTestChainIndex(ctx, test.config, memdb.New())
 			r.NoError(err)
 
 			if test.setupFunc != nil {

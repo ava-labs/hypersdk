@@ -278,29 +278,6 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	}
 
 	chainIndex := &validitywindowtest.MockChainIndex[*chain.Transaction]{}
-	validityWindow := validitywindow.NewTimeValidityWindow(
-		ctx,
-		logging.NoLog{},
-		trace.Noop,
-		chainIndex,
-		nil,
-		func(timestamp int64) int64 {
-			return test.RuleFactory.GetRules(timestamp).GetValidityWindow()
-		},
-	)
-
-	processor := chain.NewProcessor(
-		trace.Noop,
-		&logging.NoLog{},
-		test.RuleFactory,
-		processorWorkers,
-		test.AuthEngines,
-		test.MetadataManager,
-		test.BalanceHandler,
-		validityWindow,
-		metrics,
-		test.Config,
-	)
 
 	factories, keys, genesis, err := test.GenesisF(test.NumTxsPerBlock)
 	r.NoError(err)
@@ -344,6 +321,34 @@ func (test *BlockBenchmark[T]) Run(ctx context.Context, b *testing.B) {
 	for _, blk := range blocks {
 		chainIndex.Set(blk.GetID(), blk)
 	}
+
+	// Populate a validity window starting from the last block from chain-index
+	head := blocks[len(blocks)-1]
+
+	validityWindow, err := validitywindow.NewTimeValidityWindow(
+		ctx,
+		logging.NoLog{},
+		trace.Noop,
+		chainIndex,
+		head,
+		func(timestamp int64) int64 {
+			return test.RuleFactory.GetRules(timestamp).GetValidityWindow()
+		},
+	)
+	r.NoError(err)
+
+	processor := chain.NewProcessor(
+		trace.Noop,
+		&logging.NoLog{},
+		test.RuleFactory,
+		processorWorkers,
+		test.AuthEngines,
+		test.MetadataManager,
+		test.BalanceHandler,
+		validityWindow,
+		metrics,
+		test.Config,
+	)
 
 	var parentView merkledb.View
 	parentView = db
