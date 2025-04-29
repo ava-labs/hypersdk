@@ -107,7 +107,6 @@ type BalanceHandler interface {
 }
 
 type Action interface {
-	GetTypeID() uint8
 	// ValidRange is the timestamp range (in ms) that this [Action] is considered valid.
 	//
 	// -1 means no start/end
