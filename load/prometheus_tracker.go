@@ -58,6 +58,7 @@ func NewPrometheusTracker[T comparable](reg *prometheus.Registry) (*PrometheusTr
 
 	errs := wrappers.Errs{}
 	errs.Add(
+		reg.Register(prometheusTracker.txLatency),
 		reg.Register(prometheusTracker.txsIssuedCounter),
 		reg.Register(prometheusTracker.txsConfirmedCounter),
 		reg.Register(prometheusTracker.txsFailedCounter),
