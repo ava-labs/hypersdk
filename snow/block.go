@@ -297,29 +297,6 @@ func verifyPChainCtx(providedCtx, innerCtx *block.Context) error {
 	}
 }
 
-// markAccepted marks the block and updates the required VM state.
-// iff parent is non-nil, it will request the chain to Accept the block.
-// The caller is responsible to provide the accepted parent if the VM is in a ready state.
-func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *StatefulBlock[I, O, A]) error {
-	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
-		return err
-	}
-
-	if parent != nil {
-		if err := b.accept(ctx, parent.Accepted); err != nil {
-			return err
-		}
-	}
-
-	b.vm.verifiedL.Lock()
-	delete(b.vm.verifiedBlocks, b.Input.GetID())
-	b.vm.verifiedL.Unlock()
-
-	b.vm.setLastAccepted(b)
-
-	return b.notifyAccepted(ctx)
-}
-
 // Accept implements the snowman.Block.[Decidable] interface.
 // It marks this block as accepted by consensus
 // If the VM is ready, it ensures the block is verified and then calls markAccepted with its parent to process state transitions.
