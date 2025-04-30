@@ -114,7 +114,7 @@ func (cli *JSONRPCClient) SubmitTx(ctx context.Context, d []byte) (ids.ID, error
 	return resp.TxID, err
 }
 
-func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
+func (cli *JSONRPCClient) GetABI(ctx context.Context) (*abi.ABI, error) {
 	resp := new(GetABIReply)
 	err := cli.requester.SendRequest(
 		ctx,
@@ -122,6 +122,7 @@ func (cli *JSONRPCClient) GetABI(ctx context.Context) (abi.ABI, error) {
 		nil,
 		resp,
 	)
+	resp.ABI.CalculateCanotoSpec()
 	return resp.ABI, err
 }
 

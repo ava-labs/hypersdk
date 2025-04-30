@@ -3,6 +3,7 @@ module github.com/ava-labs/hypersdk/examples/morpheusvm
 go 1.23.7
 
 require (
+	github.com/StephenButtolph/canoto v0.15.0
 	github.com/ava-labs/avalanchego v1.13.1-rc.0.0.20250414210208-c8b3f57d2a25
 	github.com/ava-labs/hypersdk v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0
@@ -16,7 +17,6 @@ require (
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/StephenButtolph/canoto v0.15.0 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/ava-labs/coreth v0.15.1-rc.0 // indirect
 	github.com/ava-labs/libevm v1.13.14-0.2.0.release // indirect

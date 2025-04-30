@@ -103,7 +103,7 @@ hypersdk-cli actions -o json
 Simulate a single action transaction.
 
 ```bash
-hypersdk-cli read Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9,value=12,memo=0xdeadc0de
+hypersdk-cli read Transfer --data To=0x003d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a74e575a5a,Value=12,Memo=0xdeadc0de
 ```
 
 For interactive input remove --data from the command line:
@@ -117,7 +117,7 @@ hypersdk-cli read Transfer
 Send a transaction with a single action.
 
 ```bash
-hypersdk-cli tx Transfer --data to=0x000000000000000000000000000000000000000000000000000000000000000000a7396ce9,value=12,memo=0x001234
+hypersdk-cli tx Transfer --data To=0x003d0ad12b8ee8928edf248ca91ca55600fb383f07c32bff1d6dec472b25cf59a74e575a5a,Value=12,Memo=0x001234
 ```
 
 For interactive input:
@@ -140,9 +140,19 @@ If `--sender` isn't provided, the address associated with the private key in
 
 ## Notes
 
-- Only flat actions are supported. Arrays, slices, embedded structs, maps, and struct fields are not supported.
+- Only flat actions are supported. Futhermore, the following primitive field
+  types are supported:
+    - `int8, int16, int32, int64`
+    - `uint8, uint16, uint32, uint64`
+    - `bool`
+    - `string`
+    - `[]byte`
+    - `codec.Address`
+    - `[x]byte`
 - The CLI supports ED25519 keys only.
 - If `--data` is supplied or JSON output is selected, the CLI will not ask for action arguments interactively.
+- Currently, passing in zero values (e.g. `codec.EmptyAddress`) to the CLI will
+  result in errors when unmarshaling actions/outputs. This is a known [issue](https://github.com/StephenButtolph/canoto/issues/117) in Canoto.
 
 ## Known Issues
 

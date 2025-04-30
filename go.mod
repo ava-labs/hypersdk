@@ -35,7 +35,6 @@ require (
 	golang.org/x/crypto v0.35.0
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
 	golang.org/x/sync v0.11.0
-	golang.org/x/text v0.22.0
 	google.golang.org/grpc v1.66.0
 	google.golang.org/protobuf v1.35.2
 	gopkg.in/yaml.v2 v2.4.0
@@ -151,6 +150,7 @@ require (
 	golang.org/x/oauth2 v0.21.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/text v0.22.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	gonum.org/v1/gonum v0.11.0 // indirect

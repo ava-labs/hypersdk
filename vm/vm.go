@@ -105,10 +105,10 @@ type VM struct {
 	balanceHandler        chain.BalanceHandler
 	metadataManager       chain.MetadataManager
 	txParser              chain.Parser
-	abi                   abi.ABI
-	actionCodec           *codec.TypeParser[chain.Action]
-	authCodec             *codec.TypeParser[chain.Auth]
-	outputCodec           *codec.TypeParser[codec.Typed]
+	abi                   *abi.ABI
+	actionCodec           *codec.CanotoParser[chain.Action]
+	authCodec             *codec.CanotoParser[chain.Auth]
+	outputCodec           *codec.CanotoParser[codec.Typed]
 	authEngines           auth.Engines
 
 	// authVerifiers are used to verify signatures in parallel
@@ -127,9 +127,9 @@ func New(
 	genesisFactory genesis.GenesisAndRuleFactory,
 	balanceHandler chain.BalanceHandler,
 	metadataManager chain.MetadataManager,
-	actionCodec *codec.TypeParser[chain.Action],
-	authCodec *codec.TypeParser[chain.Auth],
-	outputCodec *codec.TypeParser[codec.Typed],
+	actionCodec *codec.CanotoParser[chain.Action],
+	authCodec *codec.CanotoParser[chain.Auth],
+	outputCodec *codec.CanotoParser[codec.Typed],
 	authEngines auth.Engines,
 	options ...Option,
 ) (*VM, error) {
@@ -140,16 +140,12 @@ func New(
 		}
 		allocatedNamespaces.Add(option.Namespace)
 	}
-	abi, err := abi.NewABI(actionCodec.GetRegisteredTypes(), outputCodec.GetRegisteredTypes())
-	if err != nil {
-		return nil, fmt.Errorf("failed to construct ABI: %w", err)
-	}
 
 	return &VM{
 		balanceHandler:        balanceHandler,
 		metadataManager:       metadataManager,
 		txParser:              chain.NewTxTypeParser(actionCodec, authCodec),
-		abi:                   abi,
+		abi:                   abi.NewABI(actionCodec, outputCodec),
 		actionCodec:           actionCodec,
 		authCodec:             authCodec,
 		outputCodec:           outputCodec,

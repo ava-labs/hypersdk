@@ -3,12 +3,12 @@
 
 package chaintest
 
+//go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
+
 import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/ava-labs/avalanchego/utils/wrappers"
 
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
@@ -23,12 +23,14 @@ var (
 )
 
 type TestAuth struct {
-	NumComputeUnits uint64        `serialize:"true" json:"numComputeUnits"`
-	ActorAddress    codec.Address `serialize:"true" json:"actor"`
-	SponsorAddress  codec.Address `serialize:"true" json:"sponsor"`
-	ShouldErr       bool          `serialize:"true" json:"shouldErr"`
-	Start           int64         `serialize:"true" json:"start"`
-	End             int64         `serialize:"true" json:"end"`
+	NumComputeUnits uint64        `canoto:"uint,1"        json:"numComputeUnits"`
+	ActorAddress    codec.Address `canoto:"fixed bytes,2" json:"actor"`
+	SponsorAddress  codec.Address `canoto:"fixed bytes,3" json:"sponsor"`
+	ShouldErr       bool          `canoto:"bool,4"        json:"shouldErr"`
+	Start           int64         `canoto:"int,5"         json:"start"`
+	End             int64         `canoto:"int,6"         json:"end"`
+
+	canotoData canotoData_TestAuth
 }
 
 func NewDummyTestAuth() *TestAuth {
@@ -46,19 +48,7 @@ func (*TestAuth) GetTypeID() uint8 {
 }
 
 func (t *TestAuth) Bytes() []byte {
-	p := &wrappers.Packer{
-		Bytes:   make([]byte, 0, 256),
-		MaxSize: 256,
-	}
-	p.PackByte(t.GetTypeID())
-	// XXX: AvalancheGo codec should never error for a valid value. Running e2e, we only
-	// interact with values unmarshalled from the network, which should guarantee a valid
-	// value here.
-	// Panic if we fail to marshal a value here to catch any potential bugs early.
-	// TODO: complete migration of user defined types to Canoto, so we do not need a panic
-	// here.
-	_ = codec.LinearCodec.MarshalInto(t, p)
-	return p.Bytes
+	return append([]byte{t.GetTypeID()}, t.MarshalCanoto()...)
 }
 
 func UnmarshalTestAuth(bytes []byte) (chain.Auth, error) {
@@ -68,10 +58,7 @@ func UnmarshalTestAuth(bytes []byte) (chain.Auth, error) {
 		return nil, fmt.Errorf("unexpected test auth typeID: %d != %d", bytes[0], TestAuthTypeID)
 	}
 
-	if err := codec.LinearCodec.UnmarshalFrom(
-		&wrappers.Packer{Bytes: bytes[1:]},
-		t,
-	); err != nil {
+	if err := t.UnmarshalCanoto(bytes[1:]); err != nil {
 		return nil, err
 	}
 	return t, nil

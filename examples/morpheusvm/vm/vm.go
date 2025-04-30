@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ActionParser *codec.TypeParser[chain.Action]
-	AuthParser   *codec.TypeParser[chain.Auth]
-	OutputParser *codec.TypeParser[codec.Typed]
+	ActionParser *codec.CanotoParser[chain.Action]
+	AuthParser   *codec.CanotoParser[chain.Auth]
+	OutputParser *codec.CanotoParser[codec.Typed]
 
 	AuthProvider *auth.AuthProvider
 
@@ -29,9 +29,9 @@ var (
 
 // Setup types
 func init() {
-	ActionParser = codec.NewTypeParser[chain.Action]()
-	AuthParser = codec.NewTypeParser[chain.Auth]()
-	OutputParser = codec.NewTypeParser[codec.Typed]()
+	ActionParser = codec.NewCanotoParser[chain.Action]()
+	AuthParser = codec.NewCanotoParser[chain.Auth]()
+	OutputParser = codec.NewCanotoParser[codec.Typed]()
 	AuthProvider = auth.NewAuthProvider()
 
 	if err := auth.WithDefaultPrivateKeyFactories(AuthProvider); err != nil {
@@ -40,7 +40,6 @@ func init() {
 
 	if err := errors.Join(
 		// When registering new actions, ALWAYS make sure to append at the end.
-		// Pass nil as second argument if manual marshalling isn't needed (if in doubt, you probably don't)
 		ActionParser.Register(&actions.Transfer{}, actions.UnmarshalTransfer),
 
 		// When registering new auth, ALWAYS make sure to append at the end.

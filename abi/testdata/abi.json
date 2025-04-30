@@ -1,265 +1,88 @@
 {
-    "actions": [
+    "actionsSpec": [
         {
-            "id": 0,
-            "name": "MockObjectSingleNumber"
-        },
-        {
-            "id": 1,
-            "name": "MockActionTransfer"
-        },
-        {
-            "id": 2,
-            "name": "MockObjectAllNumbers"
-        },
-        {
-            "id": 3,
-            "name": "MockObjectStringAndBytes"
-        },
-        {
-            "id": 4,
-            "name": "MockObjectArrays"
-        },
-        {
-            "id": 5,
-            "name": "MockActionWithTransfer"
-        },
-        {
-            "id": 6,
-            "name": "MockActionWithTransferArray"
-        },
-        {
-            "id": 7,
-            "name": "Outer"
-        },
-        {
-            "id": 8,
-            "name": "ActionWithOutput"
-        },
-        {
-            "id": 9,
-            "name": "FixedBytes"
-        },
-        {
-            "id": 10,
-            "name": "Bools"
+            "name": "TestAction",
+            "fields": [
+                {
+                    "fieldNumber": 1,
+                    "name": "NumComputeUnits",
+                    "typeUint": 4
+                },
+                {
+                    "fieldNumber": 2,
+                    "name": "SpecifiedStateKeys",
+                    "repeated": true,
+                    "typeString": true
+                },
+                {
+                    "fieldNumber": 3,
+                    "name": "SpecifiedStateKeyPermissions",
+                    "repeated": true,
+                    "typeUint": 1
+                },
+                {
+                    "fieldNumber": 4,
+                    "name": "ReadKeys",
+                    "repeated": true,
+                    "typeBytes": true
+                },
+                {
+                    "fieldNumber": 5,
+                    "name": "WriteKeys",
+                    "repeated": true,
+                    "typeBytes": true
+                },
+                {
+                    "fieldNumber": 6,
+                    "name": "WriteValues",
+                    "repeated": true,
+                    "typeBytes": true
+                },
+                {
+                    "fieldNumber": 7,
+                    "name": "ExecuteErr",
+                    "typeBool": true
+                },
+                {
+                    "fieldNumber": 8,
+                    "name": "Nonce",
+                    "typeUint": 4
+                },
+                {
+                    "fieldNumber": 9,
+                    "name": "Start",
+                    "typeInt": 4
+                },
+                {
+                    "fieldNumber": 10,
+                    "name": "End",
+                    "typeInt": 4
+                }
+            ]
         }
     ],
-    "outputs": [
+    "outputsSpec": [
         {
-            "id": 0,
-            "name": "ActionOutput"
+            "name": "TestOutput",
+            "fields": [
+                {
+                    "fieldNumber": 1,
+                    "name": "Bytes",
+                    "typeBytes": true
+                }
+            ]
         }
     ],
-    "types": [
+    "actionTypes": [
         {
-            "name": "MockObjectSingleNumber",
-            "fields": [
-                {
-                    "name": "Field1",
-                    "type": "uint16"
-                }
-            ]
-        },
+            "name": "TestAction",
+            "id": 0
+        }
+    ],
+    "outputTypes": [
         {
-            "name": "MockActionTransfer",
-            "fields": [
-                {
-                    "name": "to",
-                    "type": "Address"
-                },
-                {
-                    "name": "value",
-                    "type": "uint64"
-                },
-                {
-                    "name": "memo",
-                    "type": "[]uint8"
-                }
-            ]
-        },
-        {
-            "name": "MockObjectAllNumbers",
-            "fields": [
-                {
-                    "name": "uint8",
-                    "type": "uint8"
-                },
-                {
-                    "name": "uint16",
-                    "type": "uint16"
-                },
-                {
-                    "name": "uint32",
-                    "type": "uint32"
-                },
-                {
-                    "name": "uint64",
-                    "type": "uint64"
-                },
-                {
-                    "name": "int8",
-                    "type": "int8"
-                },
-                {
-                    "name": "int16",
-                    "type": "int16"
-                },
-                {
-                    "name": "int32",
-                    "type": "int32"
-                },
-                {
-                    "name": "int64",
-                    "type": "int64"
-                }
-            ]
-        },
-        {
-            "name": "MockObjectStringAndBytes",
-            "fields": [
-                {
-                    "name": "field1",
-                    "type": "string"
-                },
-                {
-                    "name": "field2",
-                    "type": "[]uint8"
-                }
-            ]
-        },
-        {
-            "name": "MockObjectArrays",
-            "fields": [
-                {
-                    "name": "strings",
-                    "type": "[]string"
-                },
-                {
-                    "name": "bytes",
-                    "type": "[][]uint8"
-                },
-                {
-                    "name": "uint8s",
-                    "type": "[]uint8"
-                },
-                {
-                    "name": "uint16s",
-                    "type": "[]uint16"
-                },
-                {
-                    "name": "uint32s",
-                    "type": "[]uint32"
-                },
-                {
-                    "name": "uint64s",
-                    "type": "[]uint64"
-                },
-                {
-                    "name": "int8s",
-                    "type": "[]int8"
-                },
-                {
-                    "name": "int16s",
-                    "type": "[]int16"
-                },
-                {
-                    "name": "int32s",
-                    "type": "[]int32"
-                },
-                {
-                    "name": "int64s",
-                    "type": "[]int64"
-                }
-            ]
-        },
-        {
-            "name": "MockActionWithTransfer",
-            "fields": [
-                {
-                    "name": "transfer",
-                    "type": "MockActionTransfer"
-                }
-            ]
-        },
-        {
-            "name": "MockActionWithTransferArray",
-            "fields": [
-                {
-                    "name": "transfers",
-                    "type": "[]MockActionTransfer"
-                }
-            ]
-        },
-        {
-            "name": "Outer",
-            "fields": [
-                {
-                    "name": "inner",
-                    "type": "Inner"
-                },
-                {
-                    "name": "innerArr",
-                    "type": "[]Inner"
-                }
-            ]
-        },
-        {
-            "name": "Inner",
-            "fields": [
-                {
-                    "name": "field1",
-                    "type": "uint8"
-                }
-            ]
-        },
-        {
-            "name": "ActionWithOutput",
-            "fields": [
-                {
-                    "name": "field1",
-                    "type": "uint8"
-                }
-            ]
-        },
-        {
-            "name": "FixedBytes",
-            "fields": [
-                {
-                    "name": "twoBytes",
-                    "type": "[2]uint8"
-                },
-                {
-                    "name": "thirtyTwoBytes",
-                    "type": "[32]uint8"
-                }
-            ]
-        },
-        {
-            "name": "Bools",
-            "fields": [
-                {
-                    "name": "bool1",
-                    "type": "bool"
-                },
-                {
-                    "name": "bool2",
-                    "type": "bool"
-                },
-                {
-                    "name": "boolArray",
-                    "type": "[]bool"
-                }
-            ]
-        },
-        {
-            "name": "ActionOutput",
-            "fields": [
-                {
-                    "name": "field1",
-                    "type": "uint16"
-                }
-            ]
+            "name": "TestOutput",
+            "id": 0
         }
     ]
 }

@@ -34,14 +34,15 @@ func GetNetwork(ctx context.Context, require *require.Assertions, uris []string,
 	}
 }
 
-func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI abi.ABI) {
+func GetABI(ctx context.Context, require *require.Assertions, uris []string, expectedABI *abi.ABI) {
 	for _, uri := range uris {
 		client := jsonrpc.NewJSONRPCClient(uri)
 		actualABI, err := client.GetABI(ctx)
 		require.NoError(err)
 
-		require.GreaterOrEqual(len(actualABI.Actions), 1)
-		require.NotEmpty(actualABI.Actions[0].Name)
+		require.GreaterOrEqual(len(actualABI.ActionTypes), 1)
+		require.NotEmpty(actualABI.ActionTypes[0].Name)
+
 		require.Equal(expectedABI, actualABI)
 	}
 }

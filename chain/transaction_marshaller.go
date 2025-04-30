@@ -7,35 +7,37 @@ import (
 	"fmt"
 
 	"github.com/StephenButtolph/canoto"
-
-	"github.com/ava-labs/hypersdk/codec"
 )
 
 //go:generate go run github.com/StephenButtolph/canoto/canoto $GOFILE
 
 var _ Parser = (*TxTypeParser)(nil)
 
+type TypeParser[T any] interface {
+	Unmarshal([]byte) (T, error)
+}
+
 type TxTypeParser struct {
-	ActionRegistry *codec.TypeParser[Action]
-	AuthRegistry   *codec.TypeParser[Auth]
+	ActionParser TypeParser[Action]
+	AuthParser   TypeParser[Auth]
 }
 
 func NewTxTypeParser(
-	actionRegistry *codec.TypeParser[Action],
-	authRegistry *codec.TypeParser[Auth],
+	actionParser TypeParser[Action],
+	authParser TypeParser[Auth],
 ) *TxTypeParser {
 	return &TxTypeParser{
-		ActionRegistry: actionRegistry,
-		AuthRegistry:   authRegistry,
+		ActionParser: actionParser,
+		AuthParser:   authParser,
 	}
 }
 
 func (t *TxTypeParser) ParseAction(bytes []byte) (Action, error) {
-	return t.ActionRegistry.Unmarshal(bytes)
+	return t.ActionParser.Unmarshal(bytes)
 }
 
 func (t *TxTypeParser) ParseAuth(bytes []byte) (Auth, error) {
-	return t.AuthRegistry.Unmarshal(bytes)
+	return t.AuthParser.Unmarshal(bytes)
 }
 
 type BatchedTransactions struct {

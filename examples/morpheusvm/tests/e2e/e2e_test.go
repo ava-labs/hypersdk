@@ -49,16 +49,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 	testingNetworkConfig, err := workload.NewTestNetworkConfig(100 * time.Millisecond)
 	require.NoError(err)
 
-	expectedABI, err := abi.NewABI(vm.ActionParser.GetRegisteredTypes(), vm.OutputParser.GetRegisteredTypes())
-	require.NoError(err)
-
 	authFactories := testingNetworkConfig.AuthFactories()
 	generator := workload.NewTxGenerator(authFactories[1])
 
 	he2e.SetWorkload(
 		testingNetworkConfig,
 		generator,
-		expectedABI,
+		abi.NewABI(vm.ActionParser, vm.OutputParser),
 		authFactories[2],
 		loadTxGenerators,
 		hload.ShortBurstOrchestratorConfig{
