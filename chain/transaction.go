@@ -258,10 +258,10 @@ func (t *Transaction) PreExecute(
 	for i, action := range t.Actions {
 		start, end := action.ValidRange(r)
 		if start >= 0 && timestamp < start {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+			return fmt.Errorf("%w: action type %T at index %d", ErrActionNotActivated, action, i)
 		}
 		if end >= 0 && timestamp > end {
-			return fmt.Errorf("%w: action type %d at index %d", ErrActionNotActivated, action.GetTypeID(), i)
+			return fmt.Errorf("%w: action type %T at index %d", ErrActionNotActivated, action, i)
 		}
 	}
 	start, end := t.Auth.ValidRange(r)
