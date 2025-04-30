@@ -142,8 +142,9 @@ type VM[Input Block, Output Block, Accepted Block] struct {
 	// being marked as ready. Uses the Input type because the block will not have
 	// been verified/accepted during dynamic state sync.
 	preReadyAcceptedSubs []event.Subscription[Input]
-	preRejectedSubs      []event.Subscription[Input]
-	version              string
+	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
+	preRejectedSubs []event.Subscription[Input]
+	version         string
 
 	// chainLock provides a synchronization point between state sync and normal operation.
 	// To complete dynamic state sync, we must:
