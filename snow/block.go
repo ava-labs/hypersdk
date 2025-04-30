@@ -27,24 +27,36 @@ var (
 	errMismatchedPChainContext  = errors.New("mismatched P-Chain context")
 )
 
+// Block is a union of methods required by snowman.Block and block.WithVerifyContext
 type Block interface {
-	fmt.Stringer
+	// GetID returns the ID of the block
 	GetID() ids.ID
+
+	// GetParent returns the ID of the parent block
 	GetParent() ids.ID
+
+	// GetTimestamp returns the timestamp of the block
 	GetTimestamp() int64
+
+	// GetBytes returns the bytes of the block
 	GetBytes() []byte
+
+	// GetHeight returns the height of the block
 	GetHeight() uint64
+
 	// GetContext returns the P-Chain context of the block.
 	// May return nil if there is no P-Chain context, which
 	// should only occur prior to ProposerVM activation.
 	// This will be verified from the snow package, so that the
 	// inner chain can simply use its embedded context.
 	GetContext() *block.Context
+
+	fmt.Stringer
 }
 
-// StatefulBlock implements snowman.Block and abstracts away the caching
-// and block pinning required by the AvalancheGo Consensus engine.
-// This converts the VM DevX from implementing the consensus engine specific invariants
+// StatefulBlock implements snowman.Block.
+// It abstracts caching and block pinning required by the AvalancheGo Consensus engine.
+// This converts the VM DevX from implementing the consensus engine-specific invariants
 // to implementing an input/output/accepted block type and handling the state transitions
 // between these types.
 // In conjunction with the AvalancheGo Consensus engine, this code guarantees that
@@ -56,6 +68,8 @@ type Block interface {
 // verified/accepted to update a moving state sync target.
 // After FinishStateSync is called, the snow package guarantees the same invariants
 // as applied during normal consensus.
+//
+// [snowman.Block]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/consensus/snowman/block.go#L24
 type StatefulBlock[I Block, O Block, A Block] struct {
 	Input    I
 	Output   O
@@ -66,16 +80,30 @@ type StatefulBlock[I Block, O Block, A Block] struct {
 	vm *VM[I, O, A]
 }
 
+// NewInputBlock creates a new unverified StatefulBlock.
+//
+// Returns:
+//   - A new StatefulBlock containing only the input block
+//
+// This function emulates the initial state of a block that has been built
+// but not verified
 func NewInputBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
 ) *StatefulBlock[I, O, A] {
 	return &StatefulBlock[I, O, A]{
-		Input: input,
 		vm:    vm,
+		Input: input,
 	}
 }
 
+// NewVerifiedBlock creates a StatefulBlock after a block has been built and verified but prior to being accepted/rejected by consensus.
+//
+// Returns:
+//   - A new verified StatefulBlock containing the input block, output block with state transitions
+//
+// This function emulates the state of a block that has passed verification
+// but has not yet been accepted into the blockchain by consensus
 func NewVerifiedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -89,6 +117,14 @@ func NewVerifiedBlock[I Block, O Block, A Block](
 	}
 }
 
+// NewAcceptedBlock creates a new StatefulBlock accepted by consensus and committed to the chain.
+//
+// Returns:
+//   - A new StatefulBlock containing the input block, output block, accepted block, and both verification
+//     and acceptance status set to true.
+//
+// This function emulates the final state of a block that has been fully processed, verified,
+// and accepted into the blockchain by the consensus mechanism.
 func NewAcceptedBlock[I Block, O Block, A Block](
 	vm *VM[I, O, A],
 	input I,
@@ -138,14 +174,18 @@ func (b *StatefulBlock[I, O, A]) accept(ctx context.Context, parentAccepted A) e
 	return event.NotifyAll(ctx, b.Accepted, b.vm.acceptedSubs...)
 }
 
+// ShouldVerifyWithContext returns true if the block should be verified with the provided context.
+// Always returns true
 func (*StatefulBlock[I, O, A]) ShouldVerifyWithContext(context.Context) (bool, error) {
 	return true, nil
 }
 
+// VerifyWithContext verifies the block with P-Chain context
 func (b *StatefulBlock[I, O, A]) VerifyWithContext(ctx context.Context, pChainCtx *block.Context) error {
 	return b.verifyWithContext(ctx, pChainCtx)
 }
 
+// Verify block
 func (b *StatefulBlock[I, O, A]) Verify(ctx context.Context) error {
 	return b.verifyWithContext(ctx, nil)
 }
@@ -257,6 +297,39 @@ func verifyPChainCtx(providedCtx, innerCtx *block.Context) error {
 	}
 }
 
+// markAccepted marks the block and updates the required VM state.
+// iff parent is non-nil, it will request the chain to Accept the block.
+// The caller is responsible to provide the accepted parent if the VM is in a ready state.
+func (b *StatefulBlock[I, O, A]) markAccepted(ctx context.Context, parent *StatefulBlock[I, O, A]) error {
+	if err := b.vm.inputChainIndex.UpdateLastAccepted(ctx, b.Input); err != nil {
+		return err
+	}
+
+	if parent != nil {
+		if err := b.accept(ctx, parent.Accepted); err != nil {
+			return err
+		}
+	}
+
+	b.vm.verifiedL.Lock()
+	delete(b.vm.verifiedBlocks, b.Input.GetID())
+	b.vm.verifiedL.Unlock()
+
+	b.vm.setLastAccepted(b)
+
+	return b.notifyAccepted(ctx)
+}
+
+// Accept implements the snowman.Block.[Decidable] interface.
+// It marks this block as accepted by consensus
+// If the VM is ready, it ensures the block is verified and then calls markAccepted with its parent to process state transitions.
+//
+// If the VM is not ready (during state sync),
+// it deletes it from [verifiedBlocks], sets the last accepted block to this block, and notifies subscribers.
+// We are guaranteed that the block will eventually be accepted by consensus.
+//
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/decidable.go#L16
+// [verifiedBlocks]: https://github.com/ava-labs/hypersdk/blob/ae0c960050860ad72468e5c3687966366582ba1a/snow/vm.go#L165
 // implements "snowman.Block.choices.Decidable"
 func (b *StatefulBlock[I, O, A]) Accept(ctx context.Context) error {
 	b.vm.chainLock.Lock()
@@ -345,7 +418,12 @@ func (b *StatefulBlock[I, O, A]) notifyAccepted(ctx context.Context) error {
 	return event.NotifyAll(ctx, b.Input, b.vm.preReadyAcceptedSubs...)
 }
 
-// implements "snowman.Block.choices.Decidable"
+// Reject implements the snowman.Block.[Decidable] interface.
+// It removes the block from the verified blocks map (VM.verifiedBlocks) and notifies subscribers
+// that consensus rejected the block. For any particular block, either
+// Accept or Reject will be called, never both.
+//
+// [Decidable]: https://github.com/ava-labs/avalanchego/blob/abb1a9a6a21c3dbce6dff5cdcea03173119a5f46/snow/decidable.go#L16
 func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	ctx, span := b.vm.tracer.Start(ctx, "StatefulBlock.Reject")
 	defer span.End()
@@ -362,21 +440,37 @@ func (b *StatefulBlock[I, O, A]) Reject(ctx context.Context) error {
 	return event.NotifyAll[O](ctx, b.Output, b.vm.rejectedSubs...)
 }
 
-// implements "snowman.Block"
-func (b *StatefulBlock[I, O, A]) ID() ids.ID           { return b.Input.GetID() }
-func (b *StatefulBlock[I, O, A]) Parent() ids.ID       { return b.Input.GetParent() }
-func (b *StatefulBlock[I, O, A]) Height() uint64       { return b.Input.GetHeight() }
+// ID returns id of Input block
+func (b *StatefulBlock[I, O, A]) ID() ids.ID { return b.Input.GetID() }
+
+// Parent returns parent ID of Input block
+func (b *StatefulBlock[I, O, A]) Parent() ids.ID { return b.Input.GetParent() }
+
+// Height returns height of Input block
+func (b *StatefulBlock[I, O, A]) Height() uint64 { return b.Input.GetHeight() }
+
+// Timestamp returns timestamp in milliseconds of the Input block
 func (b *StatefulBlock[I, O, A]) Timestamp() time.Time { return time.UnixMilli(b.Input.GetTimestamp()) }
-func (b *StatefulBlock[I, O, A]) Bytes() []byte        { return b.Input.GetBytes() }
 
-// Implements GetXXX for internal consistency
-func (b *StatefulBlock[I, O, A]) GetID() ids.ID       { return b.Input.GetID() }
-func (b *StatefulBlock[I, O, A]) GetParent() ids.ID   { return b.Input.GetParent() }
-func (b *StatefulBlock[I, O, A]) GetHeight() uint64   { return b.Input.GetHeight() }
+// Bytes return the serialized bytes of the Input block
+func (b *StatefulBlock[I, O, A]) Bytes() []byte { return b.Input.GetBytes() }
+
+// GetID returns ID of Input block
+func (b *StatefulBlock[I, O, A]) GetID() ids.ID { return b.Input.GetID() }
+
+// GetParent returns parent ID of Input block
+func (b *StatefulBlock[I, O, A]) GetParent() ids.ID { return b.Input.GetParent() }
+
+// GetHeight returns height of Input block
+func (b *StatefulBlock[I, O, A]) GetHeight() uint64 { return b.Input.GetHeight() }
+
+// GetTimestamp returns timestamp in milliseconds of the Input block
 func (b *StatefulBlock[I, O, A]) GetTimestamp() int64 { return b.Input.GetTimestamp() }
-func (b *StatefulBlock[I, O, A]) GetBytes() []byte    { return b.Input.GetBytes() }
 
-// implements "fmt.Stringer"
+// GetBytes return the serialized bytes of the Input block
+func (b *StatefulBlock[I, O, A]) GetBytes() []byte { return b.Input.GetBytes() }
+
+// String implements fmt.Stringer
 func (b *StatefulBlock[I, O, A]) String() string {
 	return fmt.Sprintf("(%s, verified = %t, accepted = %t)", b.Input, b.verified, b.accepted)
 }

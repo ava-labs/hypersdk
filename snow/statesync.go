@@ -19,6 +19,7 @@ import (
 
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
+// SetStateSyncableVM sets block.StateSyncableVM on the VM
 func (v *VM[I, O, A]) SetStateSyncableVM(stateSyncableVM block.StateSyncableVM) {
 	v.stateSyncableVM = stateSyncableVM
 }
@@ -136,22 +137,28 @@ func (v *VM[I, O, A]) verifyProcessingBlocks(ctx context.Context) error {
 	return nil
 }
 
+// StateSyncEnabled indicates whether the state sync is enabled for this VM
 func (v *VM[I, O, A]) StateSyncEnabled(ctx context.Context) (bool, error) {
 	return v.stateSyncableVM.StateSyncEnabled(ctx)
 }
 
+// GetOngoingSyncStateSummary returns an in-progress state summary if it
+// exists
 func (v *VM[I, O, A]) GetOngoingSyncStateSummary(ctx context.Context) (block.StateSummary, error) {
 	return v.stateSyncableVM.GetOngoingSyncStateSummary(ctx)
 }
 
+// GetLastStateSummary returns the latest state summary from block.StateSyncableVM
 func (v *VM[I, O, A]) GetLastStateSummary(ctx context.Context) (block.StateSummary, error) {
 	return v.stateSyncableVM.GetLastStateSummary(ctx)
 }
 
+// ParseStateSummary parses a state summary from summaryBytes
 func (v *VM[I, O, A]) ParseStateSummary(ctx context.Context, summaryBytes []byte) (block.StateSummary, error) {
 	return v.stateSyncableVM.ParseStateSummary(ctx, summaryBytes)
 }
 
+// GetStateSummary retrieves the state summary generated at summaryHeight
 func (v *VM[I, O, A]) GetStateSummary(ctx context.Context, summaryHeight uint64) (block.StateSummary, error) {
 	return v.stateSyncableVM.GetStateSummary(ctx, summaryHeight)
 }
