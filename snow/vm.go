@@ -52,6 +52,11 @@ import (
 	hcontext "github.com/ava-labs/hypersdk/context"
 )
 
+const (
+	acceptedQueueSize = 16
+	snowNamespace     = "snow"
+)
+
 var _ block.StateSyncableVM = (*VM[Block, Block, Block])(nil)
 
 // ChainInput contains all external dependencies and configuration needed to
@@ -124,9 +129,18 @@ type VM[Input Block, Output Block, Accepted Block] struct {
 	onBootstrapStarted        []func(context.Context) error
 	onNormalOperationsStarted []func(context.Context) error
 
-	verifiedSubs         []event.Subscription[Output]
-	rejectedSubs         []event.Subscription[Output]
-	acceptedSubs         []event.Subscription[Accepted]
+	// Consensus subscriptions (excludes dynamic state sync) notify subscribers
+	// of every successfully verified/accepted/rejected block.
+	verifiedSubs []event.Subscription[Output]
+	rejectedSubs []event.Subscription[Output]
+	// Note: acceptedSubs are guaranteed at least once delivery after restart as long as the VM
+	// executes blocks instead of falling back to dynamic state sync.
+	acceptedSubs []event.Subscription[Accepted]
+
+	// Dynamic state sync subscriptions receive accept/reject notifications for
+	// every decided block prior to dynamic state sync completing and the state
+	// being marked as ready. Uses the Input type because the block will not have
+	// been verified/accepted during dynamic state sync.
 	preReadyAcceptedSubs []event.Subscription[Input]
 	// preRejectedSubs handles rejections of I (Input) during/after state sync, before they reach O (Output) state
 	preRejectedSubs []event.Subscription[Input]
@@ -169,15 +183,26 @@ type VM[Input Block, Output Block, Accepted Block] struct {
 	acceptedBlocksByID     *cache.FIFO[ids.ID, *StatefulBlock[Input, Output, Accepted]]
 	acceptedBlocksByHeight *cache.FIFO[uint64, ids.ID]
 
-	metaLock          sync.Mutex
+	acceptedQueueBlocksProcessedWg sync.WaitGroup
+	acceptedQueue                  chan *StatefulBlock[Input, Output, Accepted]
+	acceptedQueueWg                sync.WaitGroup
+
+	metaLock sync.Mutex
+
+	// lastAcceptedBlock is the last block marked as accepted by consensus.
 	lastAcceptedBlock *StatefulBlock[Input, Output, Accepted]
-	preferredBlkID    ids.ID
+	// lastProcessedBlock is the last block processed as accepted by the underlying chain.
+	// Initialized on startup or via FinishStateSync. If state is not ready, will be left nil.
+	lastProcessedBlock *StatefulBlock[Input, Output, Accepted]
+	preferredBlkID     ids.ID
 
 	metrics *Metrics
 	log     logging.Logger
 	tracer  trace.Tracer
 
 	shutdownChan chan struct{}
+	shutdownOnce sync.Once
+	shutdownErr  error
 
 	healthCheckers sync.Map
 }
@@ -211,6 +236,7 @@ func (v *VM[I, O, A]) Initialize(
 ) error {
 	v.snowCtx = chainCtx
 	v.shutdownChan = make(chan struct{})
+	v.acceptedQueue = make(chan *StatefulBlock[I, O, A], acceptedQueueSize)
 
 	hconfig, err := hcontext.NewConfig(configBytes)
 	if err != nil {
@@ -234,7 +260,7 @@ func (v *VM[I, O, A]) Initialize(
 		return fmt.Errorf("failed to parse vm config: %w", err)
 	}
 
-	defaultRegistry, err := metrics.MakeAndRegister(v.snowCtx.Metrics, "snow")
+	defaultRegistry, err := metrics.MakeAndRegister(v.snowCtx.Metrics, snowNamespace)
 	if err != nil {
 		return err
 	}
@@ -311,7 +337,38 @@ func (v *VM[I, O, A]) Initialize(
 		return err
 	}
 
+	// startAsyncAccepter with a detached context (do not assume context passed into VM initialize persists past the call)
+	v.startAsyncAccepter(context.WithoutCancel(ctx))
+
 	return nil
+}
+
+func (v *VM[I, O, A]) startAsyncAccepter(ctx context.Context) {
+	v.acceptedQueueWg.Add(1)
+
+	go v.log.RecoverAndPanic(func() {
+		defer func() {
+			// Mark the wg as done to ensure Shutdown does not block waiting for it
+			v.acceptedQueueWg.Done()
+
+			// To more gracefully handle a fatal error in the async accepter, call Shutdown
+			// from the deferred function to attempt to clean up.
+			// On the happy path, where Shutdown is called from AvalancheGo, shutdownOnce will
+			// de-duplicate these calls.
+			// If Shutdown returns an error, we'll see a duplicate log message.
+			if err := v.Shutdown(ctx); err != nil {
+				v.log.Error("failed to shutdown VM from async accepter", zap.Error(err))
+			}
+		}()
+
+		// Perform synchronous work of accepting blocks on a separate thread to reduce blocking the
+		// consensus engine's main thread.
+		for acceptedBlk := range v.acceptedQueue {
+			if err := acceptedBlk.processAccept(ctx); err != nil {
+				panic(err)
+			}
+		}
+	})
 }
 
 func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A]) {
@@ -321,6 +378,13 @@ func (v *VM[I, O, A]) setLastAccepted(lastAcceptedBlock *StatefulBlock[I, O, A])
 	v.lastAcceptedBlock = lastAcceptedBlock
 	v.acceptedBlocksByHeight.Put(v.lastAcceptedBlock.Height(), v.lastAcceptedBlock.ID())
 	v.acceptedBlocksByID.Put(v.lastAcceptedBlock.ID(), v.lastAcceptedBlock)
+}
+
+func (v *VM[I, O, A]) setLastProcessed(lastProcessedBlock *StatefulBlock[I, O, A]) {
+	v.metaLock.Lock()
+	defer v.metaLock.Unlock()
+
+	v.lastProcessedBlock = lastProcessedBlock
 }
 
 // GetBlock retrieves a block by its ID following a specific lookup hierarchy:
@@ -520,17 +584,28 @@ func (v *VM[I, O, A]) CreateHandlers(_ context.Context) (map[string]http.Handler
 
 // Shutdown shuts down the VM
 func (v *VM[I, O, A]) Shutdown(context.Context) error {
-	v.log.Info("Shutting down VM")
-	close(v.shutdownChan)
+	v.shutdownOnce.Do(func() {
+		v.log.Info("Shutting down VM")
 
-	errs := make([]error, len(v.closers))
-	for i, closer := range v.closers {
-		v.log.Info("Shutting down service", zap.String("service", closer.name))
-		start := time.Now()
-		errs[i] = closer.close()
-		v.log.Info("Finished shutting down service", zap.String("service", closer.name), zap.Duration("duration", time.Since(start)))
-	}
-	return errors.Join(errs...)
+		v.log.Info("Shutting down accepter queue")
+		close(v.acceptedQueue)
+		v.acceptedQueueWg.Wait()
+		v.log.Info("Finished accepter queue shutdown")
+
+		v.log.Info("Closing VM shutdown channel")
+		close(v.shutdownChan)
+
+		errs := make([]error, len(v.closers))
+		for i, closer := range v.closers {
+			v.log.Info("Shutting down service", zap.String("service", closer.name))
+			start := time.Now()
+			errs[i] = closer.close()
+			v.log.Info("Finished shutting down service", zap.String("service", closer.name), zap.Duration("duration", time.Since(start)))
+		}
+		v.shutdownErr = errors.Join(errs...)
+	})
+
+	return v.shutdownErr
 }
 
 // Version returns the version of the VM

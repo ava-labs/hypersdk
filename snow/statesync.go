@@ -68,7 +68,8 @@ func (v *VM[I, O, A]) FinishStateSync(ctx context.Context, input I, output O, ac
 		v.setLastAccepted(updatedLastAccepted)
 		v.log.Info("Finished reprocessing blocks", zap.Duration("duration", time.Since(start)))
 	}
-
+	// Set last processed block to the final state sync block
+	v.setLastProcessed(v.lastAcceptedBlock)
 	if err := v.verifyProcessingBlocks(ctx); err != nil {
 		return err
 	}
