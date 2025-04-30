@@ -133,12 +133,12 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 // 3. the maximum number of attempts to reach a target TPS has been reached
 func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 	var (
-		prevConfirmed = o.tracker.GetObservedConfirmed()
-		prevTime      = time.Now()
-		currTargetTPS = new(atomic.Uint64)
+		prevConfirmed        = o.tracker.GetObservedConfirmed()
+		prevTime             = time.Now()
+		currTargetTPS        = new(atomic.Uint64)
+		attempts      uint64 = 1
 		// true if the orchestrator has reached the max TPS target
 		achievedTargetTPS bool
-		attempts          uint64
 	)
 
 	currTargetTPS.Store(o.config.MinTPS)
@@ -199,7 +199,7 @@ func (o *GradualLoadOrchestrator[T, U]) run(ctx context.Context) bool {
 				zap.Uint64("new target TPS", currTargetTPS.Load()+o.config.Step),
 			)
 			currTargetTPS.Add(o.config.Step)
-			attempts = 0
+			attempts = 1
 		} else {
 			if attempts >= o.config.MaxAttempts {
 				o.log.Info(
@@ -269,10 +269,12 @@ func (o *GradualLoadOrchestrator[T, U]) setMaxObservedTPS(tps uint64) {
 }
 
 func computeTPS(initial uint64, final uint64, duration time.Duration) uint64 {
-	seconds := uint64(duration.Seconds())
-	if seconds == 0 {
+	if duration <= 0 {
 		return 0
-	} else {
-		return (final - initial) / seconds
 	}
+
+	numTxs := final - initial
+	tps := float64(numTxs) / duration.Seconds()
+
+	return uint64(tps)
 }
