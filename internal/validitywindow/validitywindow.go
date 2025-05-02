@@ -165,13 +165,13 @@ func (v *TimeValidityWindow[T]) VerifyExpiryReplayProtection(
 
 	parent, err := v.chainIndex.GetExecutionBlock(ctx, blk.GetParent())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to fetch parent of %s: %w", blk, err)
 	}
 
 	oldestAllowed := v.calculateOldestAllowed(blk.GetTimestamp())
 	dup, err := v.isRepeat(ctx, parent, oldestAllowed, blk.GetContainers(), true)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check for repeats of %s: %w", blk, err)
 	}
 	if dup.Len() > 0 {
 		return fmt.Errorf("%w: contains %d duplicates out of %d containers", ErrDuplicateContainer, dup.BitLen(), len(blk.GetContainers()))
@@ -227,7 +227,7 @@ func (v *TimeValidityWindow[T]) isRepeat(
 
 		ancestorBlk, err = v.chainIndex.GetExecutionBlock(ctx, ancestorBlk.GetParent())
 		if err != nil {
-			return marker, err
+			return marker, fmt.Errorf("failed to fetch parent of ancestor %s: %w", ancestorBlk, err)
 		}
 	}
 }
