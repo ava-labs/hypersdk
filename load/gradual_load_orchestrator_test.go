@@ -212,4 +212,4 @@ func (*mockListener) Listen(context.Context) error {
 	return nil
 }
 
-func (*mockListener) Stop(uint64) {}
+func (*mockListener) RegisterIssued(ids.ID) {}

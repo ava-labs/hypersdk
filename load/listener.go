@@ -10,24 +10,30 @@ import (
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/api/ws"
+	"github.com/ava-labs/hypersdk/chain"
 )
 
-var _ Listener = (*DefaultListener)(nil)
+var _ Listener[*chain.Transaction] = (*DefaultListener)(nil)
 
 type DefaultListener struct {
-	client  *ws.WebSocketClient
-	tracker Tracker[ids.ID]
+	client   *ws.WebSocketClient
+	tracker  Tracker[ids.ID]
+	txTarget uint64
 
-	lock        sync.RWMutex
-	issuedTxs   uint64
-	receivedTxs uint64
-	stopped     bool
+	lock          sync.RWMutex
+	issuedTxs     uint64
+	receivedTxs   uint64
+	inFlightTxIDs map[ids.ID]struct{}
 }
 
-func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID]) *DefaultListener {
+// NewDefaultListener creates a new DefaultListener instance.
+// Set txTarget to 0 to never stop the [DefaultListener.Listen] method unless the context is cancelled.
+func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID], txTarget uint64) *DefaultListener {
 	return &DefaultListener{
-		client:  client,
-		tracker: tracker,
+		client:        client,
+		tracker:       tracker,
+		txTarget:      txTarget,
+		inFlightTxIDs: make(map[ids.ID]struct{}),
 	}
 }
 
@@ -38,8 +44,9 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 			err = closeErr
 		}
 	}()
+	defer l.markRemainingAsFailed()
 
-	for !l.isFinished() {
+	for {
 		txID, result, err := l.client.ListenTx(ctx)
 		if ctx.Err() != nil {
 			return nil
@@ -53,30 +60,34 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 			l.tracker.ObserveFailed(txID)
 		}
 
-		l.incrementReceivedTxs()
+		l.lock.Lock()
+		delete(l.inFlightTxIDs, txID)
+		l.receivedTxs++
+		if l.txTarget > 0 &&
+			l.issuedTxs == l.txTarget &&
+			l.issuedTxs == l.receivedTxs &&
+			len(l.inFlightTxIDs) == 0 {
+			l.lock.Unlock()
+			break
+		}
+		l.lock.Unlock()
 	}
 	return nil
 }
 
-func (l *DefaultListener) Stop(issued uint64) {
+func (l *DefaultListener) RegisterIssued(tx *chain.Transaction) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	l.issuedTxs = issued
-	l.stopped = true
+	l.issuedTxs++
+	l.inFlightTxIDs[tx.GetID()] = struct{}{}
 }
 
-// isFinished returns true if all transactions have been heard
-func (l *DefaultListener) isFinished() bool {
+func (l *DefaultListener) markRemainingAsFailed() {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
-
-	return l.stopped && l.issuedTxs == l.receivedTxs
-}
-
-func (l *DefaultListener) incrementReceivedTxs() {
-	l.lock.Lock()
-	defer l.lock.Unlock()
-
-	l.receivedTxs++
+	for txID := range l.inFlightTxIDs {
+		l.tracker.ObserveFailed(txID)
+	}
+	l.inFlightTxIDs = nil
 }

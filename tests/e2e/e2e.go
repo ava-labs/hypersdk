@@ -238,7 +238,7 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 			)
 			require.NoError(err, "creating websocket client")
 			issuer := load.NewDefaultIssuer(client, tracker)
-			listener := load.NewDefaultListener(client, tracker)
+			listener := load.NewDefaultListener(client, tracker, shortBurstConfig.TxsPerIssuer)
 			agents[i] = load.NewAgent(txGenerators[i], issuer, listener, tracker)
 		}
 
@@ -285,7 +285,8 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 			)
 			require.NoError(err, "creating websocket client")
 			issuer := load.NewDefaultIssuer(client, tracker)
-			listener := load.NewDefaultListener(client, tracker)
+			const txTarget = 0 // no limit, listener stops when its context is canceled only.
+			listener := load.NewDefaultListener(client, tracker, txTarget)
 			agents[i] = load.NewAgent(txGenerators[i], issuer, listener, tracker)
 		}
 
