@@ -96,7 +96,7 @@ func (o *GradualLoadOrchestrator[T, U]) Execute(ctx context.Context) error {
 
 	// start a goroutine to confirm each issuer's transactions
 	for _, agent := range o.agents {
-		o.observerGroup.Go(func() error { return agent.Issuer.Listen(ctx) })
+		o.observerGroup.Go(func() error { return agent.Listener.Listen(ctx) })
 	}
 
 	// start the test and block until it's done

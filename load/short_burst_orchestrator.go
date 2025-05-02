@@ -44,14 +44,14 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	// start a goroutine to confirm each issuer's transactions
 	observerGroup := errgroup.Group{}
 	for _, agent := range o.agents {
-		observerGroup.Go(func() error { return agent.Issuer.Listen(observerCtx) })
+		observerGroup.Go(func() error { return agent.Listener.Listen(observerCtx) })
 	}
 
 	// start issuing transactions sequentially from each issuer
 	issuerGroup := errgroup.Group{}
 	for _, agent := range o.agents {
 		issuerGroup.Go(func() error {
-			defer agent.Issuer.Stop()
+			defer agent.Listener.Stop(o.config.TxsPerIssuer)
 
 			for range o.config.TxsPerIssuer {
 				tx, err := agent.Generator.GenerateTx()

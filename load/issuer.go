@@ -5,111 +5,32 @@ package load
 
 import (
 	"context"
-	"errors"
-	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
-	"github.com/ava-labs/hypersdk/pubsub"
 )
 
-var (
-	_ Issuer[*chain.Transaction] = (*DefaultIssuer)(nil)
-
-	ErrIssuerAlreadyStopped = errors.New("issuer already stopped")
-)
+var _ Issuer[*chain.Transaction] = (*DefaultIssuer)(nil)
 
 type DefaultIssuer struct {
 	client  *ws.WebSocketClient
 	tracker Tracker[ids.ID]
-
-	lock        sync.RWMutex
-	issuedTxs   uint64
-	receivedTxs uint64
-	stopped     bool
 }
 
-func NewDefaultIssuer(uri string, tracker Tracker[ids.ID]) (*DefaultIssuer, error) {
-	client, err := ws.NewWebSocketClient(
-		uri,
-		ws.DefaultHandshakeTimeout,
-		pubsub.MaxPendingMessages,
-		pubsub.MaxReadMessageSize,
-	)
-	if err != nil {
-		return nil, err
-	}
-
+func NewDefaultIssuer(client *ws.WebSocketClient, tracker Tracker[ids.ID]) *DefaultIssuer {
 	return &DefaultIssuer{
 		client:  client,
 		tracker: tracker,
-	}, nil
-}
-
-func (i *DefaultIssuer) Listen(ctx context.Context) (err error) {
-	defer func() {
-		closeErr := i.client.Close()
-		if closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	for !i.isFinished() {
-		txID, result, err := i.client.ListenTx(ctx)
-		if ctx.Err() != nil {
-			return nil
-		} else if err != nil {
-			return err
-		}
-		// accepted txs have a non-nil result
-		if result != nil {
-			i.tracker.ObserveConfirmed(txID)
-		} else {
-			i.tracker.ObserveFailed(txID)
-		}
-
-		i.incrementReceivedTxs()
 	}
-	return nil
-}
-
-func (i *DefaultIssuer) Stop() {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-
-	i.stopped = true
 }
 
 func (i *DefaultIssuer) IssueTx(_ context.Context, tx *chain.Transaction) error {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-
-	if i.stopped {
-		return ErrIssuerAlreadyStopped
-	}
-
 	if err := i.client.RegisterTx(tx); err != nil {
 		return err
 	}
 	// Update tracker
 	i.tracker.Issue(tx.GetID())
-	i.issuedTxs++
 	return nil
-}
-
-func (i *DefaultIssuer) incrementReceivedTxs() {
-	i.lock.Lock()
-	defer i.lock.Unlock()
-
-	i.receivedTxs++
-}
-
-// isFinished returns true if all transactions have been heard
-func (i *DefaultIssuer) isFinished() bool {
-	i.lock.RLock()
-	defer i.lock.RUnlock()
-
-	return i.stopped && i.issuedTxs == i.receivedTxs
 }

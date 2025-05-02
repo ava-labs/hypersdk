@@ -230,9 +230,16 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(txGenerators))
 		for i := range agents {
-			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
-			require.NoError(err)
-			agents[i] = load.NewAgent(txGenerators[i], issuer, tracker)
+			client, err := ws.NewWebSocketClient(
+				uris[i%len(uris)],
+				ws.DefaultHandshakeTimeout,
+				pubsub.MaxPendingMessages,
+				pubsub.MaxReadMessageSize,
+			)
+			require.NoError(err, "creating websocket client")
+			issuer := load.NewDefaultIssuer(client, tracker)
+			listener := load.NewDefaultListener(client, tracker)
+			agents[i] = load.NewAgent(txGenerators[i], issuer, listener, tracker)
 		}
 
 		orchestrator, err := load.NewShortBurstOrchestrator(
@@ -270,9 +277,16 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(txGenerators))
 		for i := range agents {
-			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
-			require.NoError(err)
-			agents[i] = load.NewAgent(txGenerators[i], issuer, tracker)
+			client, err := ws.NewWebSocketClient(
+				uris[i%len(uris)],
+				ws.DefaultHandshakeTimeout,
+				pubsub.MaxPendingMessages,
+				pubsub.MaxReadMessageSize,
+			)
+			require.NoError(err, "creating websocket client")
+			issuer := load.NewDefaultIssuer(client, tracker)
+			listener := load.NewDefaultListener(client, tracker)
+			agents[i] = load.NewAgent(txGenerators[i], issuer, listener, tracker)
 		}
 
 		orchestrator, err := load.NewGradualLoadOrchestrator(

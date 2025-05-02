@@ -13,19 +13,20 @@ type TxGenerator[T comparable] interface {
 }
 
 type Issuer[T comparable] interface {
+	// Issue sends a tx to the network, and informs the tracker that it sent
+	// said transaction.
+	IssueTx(ctx context.Context, tx T) error
+}
+
+type Listener interface {
 	// Listen for the final status of transactions and notify the tracker
 	// Listen stops if the context is done, an error occurs, or if it received
 	// all the transactions issued and the issuer no longer issues any.
 	// Listen MUST return a nil error if the context is canceled.
 	Listen(ctx context.Context) error
 
-	// Stop notifies the issuer that no further transactions will be issued.
-	// If a transaction is issued after Stop has been called, the issuer should error.
-	Stop()
-
-	// Issue sends a tx to the network, and informs the tracker that its sent
-	// said transaction.
-	IssueTx(ctx context.Context, tx T) error
+	// Stop notifies the listener that no further transactions will be issued.
+	Stop(issued uint64)
 }
 
 // Tracker keeps track of the status of transactions.

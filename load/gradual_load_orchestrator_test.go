@@ -75,6 +75,7 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 						},
 					},
 					newMockIssuer(tracker, tt.serverTPS),
+					&mockListener{},
 					tracker,
 				),
 			}
@@ -122,6 +123,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 						},
 					},
 					&mockIssuer{},
+					&mockListener{},
 					tracker,
 				),
 			},
@@ -139,6 +141,7 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 					&mockIssuer{
 						issueTxErr: errMockIssuer,
 					},
+					&mockListener{},
 					tracker,
 				),
 			},
@@ -203,8 +206,10 @@ func (m *mockIssuer) IssueTx(_ context.Context, id ids.ID) error {
 	return nil
 }
 
-func (*mockIssuer) Listen(context.Context) error {
+type mockListener struct{}
+
+func (*mockListener) Listen(context.Context) error {
 	return nil
 }
 
-func (*mockIssuer) Stop() {}
+func (*mockListener) Stop(uint64) {}
