@@ -91,7 +91,11 @@ func New[T Block](
 		parser:           parser,
 	}
 
-	return ci, ci.cleanupOnStartup(ctx)
+	if err := ci.cleanupOnStartup(ctx); err != nil {
+		return nil, err
+	}
+
+	return ci, nil
 }
 
 func (c *ChainIndex[T]) GetLastAcceptedHeight(_ context.Context) (uint64, error) {

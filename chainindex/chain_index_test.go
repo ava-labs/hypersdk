@@ -170,10 +170,10 @@ func TestChainIndex_SaveHistorical(t *testing.T) {
 
 func TestChainIndex_Cleanup(t *testing.T) {
 	tests := []struct {
-		name                   string
-		config                 Config
-		setupFunc              func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
-		verifyAfterCleanupFunc func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
+		name               string
+		config             Config
+		setup              func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
+		verifyAfterCleanup func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock])
 	}{
 		{
 			name: "If there's no accepted window, nothing to clean",
@@ -181,7 +181,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 				AcceptedBlockWindow:      0,
 				BlockCompactionFrequency: 1,
 			},
-			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			setup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// Add blocks 0-10
 				for i := 0; i <= 10; i++ {
 					blkHeight := uint64(i)
@@ -195,7 +195,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 				}
 				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
 			},
-			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			verifyAfterCleanup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// All blocks should still exist
 				for i := uint64(0); i <= 10; i++ {
 					_, err := chainIndex.GetBlockByHeight(ctx, i)
@@ -209,7 +209,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 				AcceptedBlockWindow:      20,
 				BlockCompactionFrequency: 1,
 			},
-			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			setup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// Add blocks 0-10
 				for i := 0; i <= 10; i++ {
 					blk := &testBlock{height: uint64(i)}
@@ -222,7 +222,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 				}
 				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
 			},
-			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			verifyAfterCleanup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// All blocks should still exist because 10 < 20 (window)
 				for i := uint64(0); i <= 10; i++ {
 					_, err := chainIndex.GetBlockByHeight(ctx, i)
@@ -236,7 +236,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 				AcceptedBlockWindow:      5,
 				BlockCompactionFrequency: 1,
 			},
-			setupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			setup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// Create blocks in reverse order (historical first)
 
 				// Historical blocks (0-7) added in reverse order
@@ -259,7 +259,7 @@ func TestChainIndex_Cleanup(t *testing.T) {
 
 				confirmLastAcceptedHeight(r, ctx, chainIndex, 10)
 			},
-			verifyAfterCleanupFunc: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
+			verifyAfterCleanup: func(ctx context.Context, r *require.Assertions, chainIndex *ChainIndex[*testBlock]) {
 				// UpdateLastAccepted deleted blocks, 3, 4 and 5 but there's gap 1 and 2, those should be deleted as well
 				for i := 1; i <= 5; i++ {
 					_, err := chainIndex.GetBlockByHeight(ctx, uint64(i))
@@ -283,14 +283,14 @@ func TestChainIndex_Cleanup(t *testing.T) {
 			chainIndex, err := newTestChainIndex(ctx, test.config, memdb.New())
 			r.NoError(err)
 
-			if test.setupFunc != nil {
-				test.setupFunc(ctx, r, chainIndex)
+			if test.setup != nil {
+				test.setup(ctx, r, chainIndex)
 			}
 
 			r.NoError(chainIndex.cleanupOnStartup(ctx))
 
-			if test.verifyAfterCleanupFunc != nil {
-				test.verifyAfterCleanupFunc(ctx, r, chainIndex)
+			if test.verifyAfterCleanup != nil {
+				test.verifyAfterCleanup(ctx, r, chainIndex)
 			}
 
 			// Genesis should never be deleted

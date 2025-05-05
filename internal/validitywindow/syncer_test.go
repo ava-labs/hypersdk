@@ -19,7 +19,7 @@ type testCases struct {
 	numOfBlocks     int
 	setupChainIndex func([]ExecutionBlock[container]) *testChainIndex
 	setupFetcher    func([]ExecutionBlock[container]) *BlockFetcherClient[ExecutionBlock[container]]
-	verifyFunc      func(context.Context, *require.Assertions, []ExecutionBlock[container], *Syncer[container, ExecutionBlock[container]], *testChainIndex)
+	verify          func(context.Context, *require.Assertions, []ExecutionBlock[container], *Syncer[container, ExecutionBlock[container]], *testChainIndex)
 }
 
 func TestSyncer_Start(t *testing.T) {
@@ -33,18 +33,18 @@ func TestSyncer_Start(t *testing.T) {
 				// no need for fetcher
 				return nil
 			},
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
 				target := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, target)
-				req.NoError(err)
-				req.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				r.NoError(err)
+				r.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
 				// We're expecting oldestBlock to have height 8 because:
 				// - We have 15 blocks (height 0-14)
 				// - Validity window is 5 time units
 				// - Given target block at height 14 (timestamp 14)
 				// - We need blocks until timestamp difference > 5
 				// - This happens at block height 8 (14 - 8 > 5)
-				req.Equal(blkChain[8].GetHeight(), syncer.oldestBlock.GetHeight())
+				r.Equal(blkChain[8].GetHeight(), syncer.oldestBlock.GetHeight())
 			},
 		},
 		{
@@ -56,21 +56,21 @@ func TestSyncer_Start(t *testing.T) {
 				return newTestChainIndex(blkChain[15:])
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
 				// we should have the most recent 5 blocks in-memory
 				// that is not enough to build full validity window, we need to fetch the rest from the network
 				target := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, target)
-				req.NoError(err)
-				req.NoError(syncer.Wait(ctx))
+				r.NoError(err)
+				r.NoError(syncer.Wait(ctx))
 
 				// the last acceptedIndex height should be the last acceptedIndex height from the cache, since historical blocks should not update the last acceptedIndex field
-				req.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
-				req.Equal(blkChain[15].GetHeight(), syncer.oldestBlock.GetHeight())
+				r.Equal(blkChain[len(blkChain)-1].GetHeight(), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				r.Equal(blkChain[15].GetHeight(), syncer.oldestBlock.GetHeight())
 
 				// verify the oldest allowed block in time validity window
-				req.Equal(blkChain[4].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
-				req.NotEqual(blkChain[3].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
+				r.Equal(blkChain[4].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
+				r.NotEqual(blkChain[3].GetTimestamp(), syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()))
 			},
 		},
 		{
@@ -81,22 +81,22 @@ func TestSyncer_Start(t *testing.T) {
 				return &testChainIndex{}
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], blockStore *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], blockStore *testChainIndex) {
 				target := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, target)
-				req.NoError(err)
-				req.NoError(syncer.Wait(ctx))
+				r.NoError(err)
+				r.NoError(syncer.Wait(ctx))
 
-				req.Equal(uint64(19), syncer.timeValidityWindow.lastAcceptedBlockHeight)
-				req.Equal(syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()), blkChain[4].GetTimestamp())
+				r.Equal(uint64(19), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				r.Equal(syncer.timeValidityWindow.calculateOldestAllowed(target.GetTimestamp()), blkChain[4].GetTimestamp())
 
 				// Ensure historical (fetched) blocks are saved
 				// this is required to ensure consistency between on-disk representation and validity window
 				for i := 3; i < 19; i++ {
 					blk := blkChain[i]
 					fetchedBlk, err := blockStore.GetExecutionBlock(ctx, blk.GetID())
-					req.NoError(err)
-					req.Equal(blk, fetchedBlk)
+					r.NoError(err)
+					r.Equal(blk, fetchedBlk)
 				}
 			},
 		},
@@ -112,20 +112,20 @@ func TestSyncer_Start(t *testing.T) {
 				}
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], blockStore *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], blockStore *testChainIndex) {
 				target := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, target)
-				req.NoError(err)
-				req.ErrorIs(syncer.Wait(ctx), errSaveHistoricalBlocks)
+				r.NoError(err)
+				r.ErrorIs(syncer.Wait(ctx), errSaveHistoricalBlocks)
 
 				// Last accepted block in time validity window should be the target
-				req.Equal(uint64(19), syncer.timeValidityWindow.lastAcceptedBlockHeight)
+				r.Equal(uint64(19), syncer.timeValidityWindow.lastAcceptedBlockHeight)
 
 				// No blocks should be saved on chain index starting from target-1
 				for i := 3; i < 19; i++ {
 					blk := blkChain[i]
 					_, err := blockStore.GetExecutionBlock(ctx, blk.GetID())
-					req.Error(err)
+					r.Error(err)
 				}
 			},
 		},
@@ -149,12 +149,12 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				return newTestChainIndex(blkChain[20:])
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
 				// Perform initial sync with second-to-last block
 				initialTarget := blkChain[len(blkChain)-2]
 				err := syncer.Start(ctx, initialTarget)
-				req.NoError(err)
-				req.NoError(syncer.Wait(ctx))
+				r.NoError(err)
+				r.NoError(syncer.Wait(ctx))
 
 				initialMinTS := syncer.minTimestamp.Load()
 				initialOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(initialTarget.GetTimestamp())
@@ -162,16 +162,16 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				// Update to newer block (the last block in chain)
 				newTarget := blkChain[len(blkChain)-1]
 				err = syncer.UpdateSyncTarget(ctx, newTarget)
-				req.NoError(err)
+				r.NoError(err)
 
 				// Verify window has moved forward
 				newOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(newTarget.GetTimestamp())
-				req.Greater(newOldestAllowed, initialOldestAllowed, "window should expand forward with newer block")
+				r.Greater(newOldestAllowed, initialOldestAllowed, "window should expand forward with newer block")
 
 				// minTimestamp defines the earliest point in time from which we need to maintain block history
 				// When new blocks arrive from consensus, they effectively push this boundary forward in time
 				// as newer blocks are added to the chain
-				req.Greater(syncer.minTimestamp.Load(), initialMinTS, "min timestamp should move forward with newer block")
+				r.Greater(syncer.minTimestamp.Load(), initialMinTS, "min timestamp should move forward with newer block")
 			},
 		},
 		{
@@ -182,12 +182,12 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				return newTestChainIndex(blkChain[20:])
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
 				// Start initial sync
 				initialTarget := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, initialTarget)
-				req.NoError(err)
-				req.NoError(syncer.Wait(ctx))
+				r.NoError(err)
+				r.NoError(syncer.Wait(ctx))
 
 				initialOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(initialTarget.GetTimestamp())
 
@@ -203,11 +203,11 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 					)
 					// Update sync target
 					err = syncer.UpdateSyncTarget(ctx, newBlock)
-					req.NoError(err)
+					r.NoError(err)
 
 					// Verify window boundaries
 					newOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(newBlock.GetTimestamp())
-					req.Greater(
+					r.Greater(
 						newOldestAllowed,
 						initialOldestAllowed,
 						"window should move forward with each consensus block",
@@ -226,12 +226,12 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 				return newTestChainIndex(blkChain[20:])
 			},
 			setupFetcher: newFetcher,
-			verifyFunc: func(ctx context.Context, req *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
+			verify: func(ctx context.Context, r *require.Assertions, blkChain []ExecutionBlock[container], syncer *Syncer[container, ExecutionBlock[container]], _ *testChainIndex) {
 				// Start initial sync
 				initialTarget := blkChain[len(blkChain)-1]
 				err := syncer.Start(ctx, initialTarget)
-				req.NoError(err)
-				req.NoError(syncer.Wait(ctx))
+				r.NoError(err)
+				r.NoError(syncer.Wait(ctx))
 
 				initialOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(initialTarget.GetTimestamp())
 
@@ -244,11 +244,11 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 
 				// Update to new block
 				err = syncer.UpdateSyncTarget(ctx, sameHeightBlock)
-				req.NoError(err)
+				r.NoError(err)
 
 				// Verify window remains unchanged
 				newOldestAllowed := syncer.timeValidityWindow.calculateOldestAllowed(sameHeightBlock.GetTimestamp())
-				req.Equal(initialOldestAllowed, newOldestAllowed, "window should not change with same-height block")
+				r.Equal(initialOldestAllowed, newOldestAllowed, "window should not change with same-height block")
 			},
 		},
 	}
@@ -262,7 +262,7 @@ func TestSyncer_UpdateSyncTarget(t *testing.T) {
 
 func runSyncerTest(t *testing.T, test testCases) {
 	ctx := context.Background()
-	req := require.New(t)
+	r := require.New(t)
 
 	blkChain := generateTestChain(test.numOfBlocks)
 	chainIndex := test.setupChainIndex(blkChain)
@@ -276,7 +276,7 @@ func runSyncerTest(t *testing.T, test testCases) {
 		head,
 		func(_ int64) int64 { return test.validityWindow },
 	)
-	req.NoError(err)
+	r.NoError(err)
 
 	fetcher := test.setupFetcher(blkChain)
 	syncer := NewSyncer[container, ExecutionBlock[container]](
@@ -286,7 +286,7 @@ func runSyncerTest(t *testing.T, test testCases) {
 		func(_ int64) int64 { return test.validityWindow },
 	)
 
-	test.verifyFunc(ctx, req, blkChain, syncer, chainIndex)
+	test.verify(ctx, r, blkChain, syncer, chainIndex)
 }
 
 func newTestChainIndex(blocks []ExecutionBlock[container]) *testChainIndex {

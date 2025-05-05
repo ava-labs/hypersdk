@@ -92,7 +92,7 @@ func (s *Syncer[T, B]) Start(ctx context.Context, target B) error {
 		for blk := range resultChan {
 			if err := s.blockStore.SaveHistorical(blk); err != nil {
 				s.errChan <- fmt.Errorf(
-					"%w; aborting to prevent inconsistencies %w",
+					"%w: aborting to prevent inconsistencies %w",
 					errSaveHistoricalBlocks,
 					err,
 				)
