@@ -9,12 +9,9 @@ if ! [[ "$0" =~ scripts/lint.sh ]]; then
   exit 255
 fi
 
-# Default version of golangci-lint
-GOLANGCI_LINT_VERSION=${GOLANGCI_LINT_VERSION:-"v2.0.2"}
-
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)
 # shellcheck source=/scripts/common/utils.sh
-source "$SCRIPT_DIR"/common/utils.sh
+source "${REPO_ROOT}"/scripts/common/utils.sh
 
 if [ "$#" -eq 0 ]; then
   # by default, check all source code
@@ -32,14 +29,14 @@ TESTS=${TESTS:-"golangci_lint gci"}
 
 # https://github.com/golangci/golangci-lint/releases
 function test_golangci_lint {
-  go install -v github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"$GOLANGCI_LINT_VERSION"
-
-  golangci-lint run --config .golangci.yml
+  "${REPO_ROOT}"/bin/golangci-lint run --config .golangci.yml
 }
 
 function test_gci {
-  install_if_not_exists gci github.com/daixiang0/gci@v0.12.1
-  FILES=$(gci list --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .)
+  # Ensure gci is installed first to ensure installation output isn't confused for non-compliant files
+  "${REPO_ROOT}"/bin/gci --version
+
+  FILES=$("${REPO_ROOT}"/bin/gci list --skip-generated -s standard -s default -s blank -s dot -s "prefix(github.com/ava-labs/hypersdk)" -s alias --custom-order .)
   if [[ "${FILES}" ]]; then
     echo ""
     echo "Some files need to be gci-ed:"

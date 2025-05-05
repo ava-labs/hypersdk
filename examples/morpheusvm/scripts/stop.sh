@@ -9,4 +9,4 @@ MORPHEUSVM_PATH=$(
   cd .. && pwd
 )
 
-ginkgo -v "$MORPHEUSVM_PATH"/tests/e2e/e2e.test -- --stop-network
+"$MORPHEUSVM_PATH"/../../bin/ginkgo -v "$MORPHEUSVM_PATH"/tests/e2e/e2e.test -- --stop-network
