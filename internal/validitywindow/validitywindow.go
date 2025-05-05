@@ -55,19 +55,19 @@ type Interface[T emap.Item] interface {
 	IsRepeat(ctx context.Context, parentBlk ExecutionBlock[T], currentTimestamp int64, containers []T) (set.Bits, error)
 }
 
-// TimeValidityWindow is a time-based transaction mechanism that prevents replay attacks.
-// It maintains a record of transactions that have been seen within a
-// configurable time window and rejects any duplicates.
+// TimeValidityWindow is a timestamp-based replay protection mechanism.
+// It maintains a configurable time window of emap.Item entries that have been
+// included.
+// Each emap.Item within TimeValidityWindow has two states:
+//  1. Included - The item is currently tracked within validity window
+//  2. Expired - The item has passed its expiry time and is automatically removed
+//     from tracking. Once expired, an item is considered invalid for its original
+//     purpose, but this expiration also means it could potentially be included
+//     again in a new transaction.
 //
-// This component is critical as it:
-//  1. Prevents transaction replay attacks
-//  2. Enforces double-spend protection
-//  3. Provides temporal validation boundaries
-//  4. Maintains consensus safety across nodes i.e.;
-//     if different nodes had different rules for transaction uniqueness,
-//     they would disagree about the state of the blockchain.
-//
-// TimeValidityWindow builds up on assumption of ChainIndex being up to date
+// TimeValidityWindow builds on an assumption of ChainIndex being up to date to populate TimeValidityWindow state.
+// This means ChainIndex must provide access to all blocks within the validity window (both in-memory and saved on-disk),
+// as missing blocks would create gaps in transaction history that could allow replay attacks and state inconsistencies.
 type TimeValidityWindow[T emap.Item] struct {
 	log                     logging.Logger
 	tracer                  trace.Tracer
