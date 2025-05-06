@@ -17,7 +17,7 @@ const namespace = "load"
 var _ Tracker[any] = (*PrometheusTracker[any])(nil)
 
 type PrometheusTracker[T comparable] struct {
-	mutex sync.RWMutex
+	lock sync.RWMutex
 
 	outstandingTxs map[T]time.Time
 
@@ -73,29 +73,29 @@ func NewPrometheusTracker[T comparable](reg PrometheusRegistry) (*PrometheusTrac
 }
 
 func (p *PrometheusTracker[T]) GetObservedConfirmed() uint64 {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 
 	return p.txsConfirmed
 }
 
 func (p *PrometheusTracker[T]) GetObservedFailed() uint64 {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 
 	return p.txsFailed
 }
 
 func (p *PrometheusTracker[T]) GetObservedIssued() uint64 {
-	p.mutex.RLock()
-	defer p.mutex.RUnlock()
+	p.lock.RLock()
+	defer p.lock.RUnlock()
 
 	return p.txsIssued
 }
 
 func (p *PrometheusTracker[T]) Issue(tx T) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	p.outstandingTxs[tx] = time.Now()
 	p.txsIssued++
@@ -103,8 +103,8 @@ func (p *PrometheusTracker[T]) Issue(tx T) {
 }
 
 func (p *PrometheusTracker[T]) ObserveConfirmed(tx T) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	startTime := p.outstandingTxs[tx]
 	delete(p.outstandingTxs, tx)
@@ -115,8 +115,8 @@ func (p *PrometheusTracker[T]) ObserveConfirmed(tx T) {
 }
 
 func (p *PrometheusTracker[T]) ObserveFailed(tx T) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	startTime := p.outstandingTxs[tx]
 	delete(p.outstandingTxs, tx)
@@ -128,8 +128,8 @@ func (p *PrometheusTracker[T]) ObserveFailed(tx T) {
 
 // String returns a string representation of the tracker stats.
 func (p *PrometheusTracker[T]) String() string {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
 	return fmt.Sprintf("Tracker stats: issued=%d, confirmed=%d, failed=%d, inflight=%d",
 		p.txsIssued, p.txsConfirmed, p.txsFailed, len(p.outstandingTxs))
