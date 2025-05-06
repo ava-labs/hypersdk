@@ -7,15 +7,10 @@ import (
 	"context"
 )
 
-type TxGenerator[T comparable] interface {
-	// GenerateTx returns a valid transaction.
-	GenerateTx() (T, error)
-}
-
 type Issuer[T comparable] interface {
-	// Issue sends a tx to the network, and informs the tracker that it sent
-	// said transaction.
-	IssueTx(ctx context.Context, tx T) error
+	// GenerateAndIssueTx generates and sends a tx to the network, and informs the
+	// tracker that it sent said transaction. It returns the sent transaction.
+	GenerateAndIssueTx(ctx context.Context) (tx T, err error)
 }
 
 type Listener[T comparable] interface {

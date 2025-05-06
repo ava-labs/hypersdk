@@ -17,10 +17,7 @@ import (
 	"github.com/ava-labs/hypersdk/consts"
 )
 
-var (
-	_ TxGenerator[ids.ID] = (*mockTxGenerator)(nil)
-	_ Issuer[ids.ID]      = (*mockIssuer)(nil)
-)
+var _ Issuer[ids.ID] = (*mockIssuer)(nil)
 
 func TestGradualLoadOrchestratorTPS(t *testing.T) {
 	tests := []struct {
@@ -69,12 +66,13 @@ func TestGradualLoadOrchestratorTPS(t *testing.T) {
 
 			agents := []Agent[ids.ID, ids.ID]{
 				NewAgent(
-					&mockTxGenerator{
+					&mockIssuer{
 						generateTxF: func() (ids.ID, error) {
 							return ids.GenerateTestID(), nil
 						},
+						tracker: tracker,
+						maxTxs:  tt.serverTPS,
 					},
-					newMockIssuer(tracker, tt.serverTPS),
 					&mockListener{},
 					tracker,
 				),
@@ -117,12 +115,11 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			name: "generator error",
 			agents: []Agent[ids.ID, ids.ID]{
 				NewAgent[ids.ID, ids.ID](
-					&mockTxGenerator{
+					&mockIssuer{
 						generateTxF: func() (ids.ID, error) {
 							return ids.Empty, errMockTxGenerator
 						},
 					},
-					&mockIssuer{},
 					&mockListener{},
 					tracker,
 				),
@@ -133,12 +130,10 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 			name: "issuer error",
 			agents: []Agent[ids.ID, ids.ID]{
 				NewAgent[ids.ID, ids.ID](
-					&mockTxGenerator{
+					&mockIssuer{
 						generateTxF: func() (ids.ID, error) {
 							return ids.GenerateTestID(), nil
 						},
-					},
-					&mockIssuer{
 						issueTxErr: errMockIssuer,
 					},
 					&mockListener{},
@@ -167,43 +162,34 @@ func TestGradualLoadOrchestratorExecution(t *testing.T) {
 	}
 }
 
-type mockTxGenerator struct {
-	generateTxF func() (ids.ID, error)
-}
-
-func (m *mockTxGenerator) GenerateTx() (ids.ID, error) {
-	return m.generateTxF()
-}
-
 type mockIssuer struct {
+	generateTxF   func() (ids.ID, error)
 	currTxsIssued uint64
 	maxTxs        uint64
 	tracker       Tracker[ids.ID]
 	issueTxErr    error
 }
 
-func newMockIssuer(tracker Tracker[ids.ID], maxTxs uint64) *mockIssuer {
-	return &mockIssuer{
-		tracker: tracker,
-		maxTxs:  maxTxs,
-	}
-}
-
-// IssueTx immediately issues and confirms a tx
+// GenerateAndIssueTx immediately generates, issues and confirms a tx.
 // To simulate TPS, the number of txs IssueTx can issue/confirm is capped by maxTxs
-func (m *mockIssuer) IssueTx(_ context.Context, id ids.ID) error {
+func (m *mockIssuer) GenerateAndIssueTx(_ context.Context) (ids.ID, error) {
+	id, err := m.generateTxF()
+	if err != nil {
+		return id, err
+	}
+
 	if m.issueTxErr != nil {
-		return m.issueTxErr
+		return ids.ID{}, m.issueTxErr
 	}
 
 	if m.currTxsIssued >= m.maxTxs {
-		return nil
+		return ids.ID{}, nil
 	}
 
 	m.tracker.Issue(id)
 	m.tracker.ObserveConfirmed(id)
 	m.currTxsIssued++
-	return nil
+	return id, nil
 }
 
 type mockListener struct{}

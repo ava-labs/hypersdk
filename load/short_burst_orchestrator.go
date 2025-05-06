@@ -52,11 +52,8 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	for _, agent := range o.agents {
 		issuerGroup.Go(func() error {
 			for i := range o.config.TxsPerIssuer {
-				tx, err := agent.Generator.GenerateTx()
+				tx, err := agent.Issuer.GenerateAndIssueTx(ctx)
 				if err != nil {
-					return err
-				}
-				if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 					return err
 				}
 				lastIssued := i == o.config.TxsPerIssuer-1

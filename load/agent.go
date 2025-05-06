@@ -4,23 +4,20 @@
 package load
 
 type Agent[T, U comparable] struct {
-	Generator TxGenerator[T]
-	Issuer    Issuer[T]
-	Listener  Listener[T]
-	Tracker   Tracker[U]
+	Issuer   Issuer[T]
+	Listener Listener[T]
+	Tracker  Tracker[U]
 }
 
 func NewAgent[T, U comparable](
-	generator TxGenerator[T],
 	issuer Issuer[T],
 	listener Listener[T],
 	tracker Tracker[U],
 ) Agent[T, U] {
 	return Agent[T, U]{
-		Generator: generator,
-		Issuer:    issuer,
-		Listener:  listener,
-		Tracker:   tracker,
+		Issuer:   issuer,
+		Listener: listener,
+		Tracker:  tracker,
 	}
 }
 

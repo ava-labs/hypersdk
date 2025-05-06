@@ -233,11 +233,8 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 				currTime := time.Now()
 				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.agents))) * o.config.TxRateMultiplier)
 				for range txsPerIssuer {
-					tx, err := agent.Generator.GenerateTx()
+					tx, err := agent.Issuer.GenerateAndIssueTx(ctx)
 					if err != nil {
-						return err
-					}
-					if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 						return err
 					}
 					const lastIssued = false // always listen until listener context is cancelled
