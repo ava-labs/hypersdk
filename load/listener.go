@@ -27,8 +27,7 @@ type DefaultListener struct {
 	inFlightTxIDs set.Set[ids.ID]
 }
 
-// NewDefaultListener creates a new DefaultListener instance.
-// Set txTarget to 0 to never stop the [DefaultListener.Listen] method unless the context is cancelled.
+// NewDefaultListener creates a new [DefaultListener] instance.
 func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID]) *DefaultListener {
 	return &DefaultListener{
 		client:        client,
