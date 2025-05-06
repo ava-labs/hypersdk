@@ -66,7 +66,6 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 		l.receivedTxs++
 		if l.txTarget > 0 &&
 			l.issuedTxs == l.txTarget &&
-			l.issuedTxs == l.receivedTxs &&
 			len(l.inFlightTxIDs) == 0 {
 			l.lock.Unlock()
 			break
