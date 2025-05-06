@@ -2,12 +2,12 @@
 
 This package provides generic utilities for blockchain load testing. We break load generation down into the following components:
 
-- tx generator(s)
 - tx issuer(s)
-- tracker
+- tx listener(s)
+- tracker(s)
 - orchestrator
 
-The transaction generator(s) and issuer(s) may be VM specific and provide the
+The transaction issuer(s) and listener(s) may be VM specific and provide the
 necessary injected dependencies for the orchestrator. This enables us to
 construct different load testing strategies on top of the same re-usable code.
 For example, we can re-use these components for a short burst of transactions or
@@ -17,50 +17,65 @@ to perform gradual load testing.
 
 ```mermaid
 graph
-    A["Orchestrator"]
-    subgraph B1["Issuer 1"]
-        TG1["TxGenerator 1"]
+    O["Orchestrator"]
+    subgraph "Agent 3"
+        A3_I["Issuer 3"]
+        A3_L["Listener 3"]
+        A3_T["Tracker 3"]
     end
-    subgraph B2["Issuer 2"]
-        TG2["TxGenerator 2"]
+    subgraph "Agent 2"
+        A2_I["Issuer 2"]
+        A2_L["Listener 2"]
+        A2_T["Tracker 2"]
     end
-    subgraph B3["Issuer 3"]
-        TG3["TxGenerator 3"]
+    subgraph "Agent 1"
+        A1_I["Issuer 1"]
+        A1_L["Listener 1"]
+        A1_T["Tracker 1"]
     end
-    C["Tracker"]
 
-    A <--> C
+    A1_T --> O
+    A2_T --> O
+    A3_T --> O
 
-    A --> B1
-    A --> B2
-    A --> B3
+    O --> A1_I
+    O --> A2_I
+    O --> A3_I
 
-    B1 --> C
-    B2 --> C
-    B3 --> C
+    A1_I --> A1_L
+    A2_I --> A2_L
+    A3_I --> A3_L
+
+    A1_I --> A1_T
+    A2_I --> A2_T
+    A3_I --> A3_T
+    A1_L --> A1_T
+    A2_L --> A2_T
+    A3_L --> A3_T
 ```
 
 ### Orchestrator
 
-The orchestrator is responsible for directing issuers to send transactions to
-the network. The strategy for how the orchestrator directs issuers varies
+The orchestrator is responsible for directing issuers and listeners
+to send transactions to the network and detect when a transaction is confirmed.
+The strategy for how the orchestrator directs issuers varies
 between implementations (e.g. short burst vs gradual load).
 
-### Transaction Generator
+### Issuer
 
-The tx generator is responsible for generating a valid transaction which any
-issuer can send.
+The issuer is responsible for generating and issuing transactions.
+It notifies the tracker of all issued transactions.
 
-### Tx Issuer
+### Listener
 
-The tx issuer is responsible for tracking the status of all sent transactions.
-As it issues/confirms transactions, it notifies the tracker, so that it can
-maintain metrics across the generated load.
+The listener is responsible for listening to the network and confirming
+transactions or marking them as failed. As it receives transactions, it
+notifies the tracker of the transaction status.
 
 ### Tracker
 
 The tracker is responsible for maintaining metrics for all sent txs. Since the
-tracker is used by both the issuers and the orchestrator, all methods of the
+tracker is used by both the issuers, listeners and the orchestrator, all methods of the
 tracker must be thread safe.
 
 ## Default Orchestrators
