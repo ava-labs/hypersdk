@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -68,7 +69,7 @@ func DefaultGradualLoadOrchestratorConfig() GradualLoadOrchestratorConfig {
 type GradualLoadOrchestrator[T, U comparable] struct {
 	agents []Agent[T, U]
 
-	log Logger
+	log logging.Logger
 
 	maxObservedTPS atomic.Uint64
 
@@ -80,7 +81,7 @@ type GradualLoadOrchestrator[T, U comparable] struct {
 
 func NewGradualLoadOrchestrator[T, U comparable](
 	agents []Agent[T, U],
-	log Logger,
+	log logging.Logger,
 	config GradualLoadOrchestratorConfig,
 ) (*GradualLoadOrchestrator[T, U], error) {
 	return &GradualLoadOrchestrator[T, U]{

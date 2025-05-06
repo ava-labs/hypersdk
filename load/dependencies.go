@@ -5,8 +5,6 @@ package load
 
 import (
 	"context"
-
-	"go.uber.org/zap"
 )
 
 type Issuer[T comparable] interface {
@@ -50,10 +48,6 @@ type Tracker[T comparable] interface {
 
 	// String returns a string representation of the tracker state.
 	String() string
-}
-
-type Logger interface {
-	Info(msg string, args ...zap.Field)
 }
 
 // orchestrator executes the load test by coordinating the issuers to send

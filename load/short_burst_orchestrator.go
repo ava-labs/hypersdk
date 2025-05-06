@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ava-labs/avalanchego/utils/logging"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,14 +22,14 @@ type ShortBurstOrchestratorConfig struct {
 // transactions en masse in a short timeframe.
 type ShortBurstOrchestrator[T, U comparable] struct {
 	agents []Agent[T, U]
-	log    Logger
+	log    logging.Logger
 
 	config ShortBurstOrchestratorConfig
 }
 
 func NewShortBurstOrchestrator[T, U comparable](
 	agents []Agent[T, U],
-	log Logger,
+	log logging.Logger,
 	config ShortBurstOrchestratorConfig,
 ) (*ShortBurstOrchestrator[T, U], error) {
 	return &ShortBurstOrchestrator[T, U]{
