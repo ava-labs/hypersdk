@@ -65,7 +65,7 @@ var (
 
 // LoadIssuers returns the components necessary to instantiate an
 // Orchestrator.
-// We use an issuer here since the node URIs are not known until runtime.
+// LoadIssuers is an initializer function since the node URIs are not known until runtime.
 type LoadIssuers func(
 	ctx context.Context,
 	uri string,
