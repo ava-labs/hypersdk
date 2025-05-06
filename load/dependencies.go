@@ -45,9 +45,6 @@ type Tracker[T comparable] interface {
 	// GetObservedFailed returns the number of transactions that the tracker has
 	// confirmed failed.
 	GetObservedFailed() uint64
-
-	// String returns a string representation of the tracker state.
-	String() string
 }
 
 // orchestrator executes the load test by coordinating the issuers to send

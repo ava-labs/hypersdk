@@ -4,7 +4,6 @@
 package load
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -124,13 +123,4 @@ func (p *PrometheusTracker[T]) ObserveFailed(tx T) {
 	p.txsFailed++
 	p.txsFailedCounter.Inc()
 	p.txLatency.Observe(float64(time.Since(startTime).Milliseconds()))
-}
-
-// String returns a string representation of the tracker stats.
-func (p *PrometheusTracker[T]) String() string {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
-	return fmt.Sprintf("Tracker stats: issued=%d, confirmed=%d, failed=%d, inflight=%d",
-		p.txsIssued, p.txsConfirmed, p.txsFailed, len(p.outstandingTxs))
 }
