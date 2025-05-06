@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ava-labs/avalanchego/ids"
+	"github.com/ava-labs/avalanchego/utils/set"
 
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
@@ -23,7 +24,7 @@ type DefaultListener struct {
 	lock          sync.RWMutex
 	issuedTxs     uint64
 	receivedTxs   uint64
-	inFlightTxIDs map[ids.ID]struct{}
+	inFlightTxIDs set.Set[ids.ID]
 }
 
 // NewDefaultListener creates a new DefaultListener instance.
@@ -33,7 +34,7 @@ func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID], txT
 		client:        client,
 		tracker:       tracker,
 		txTarget:      txTarget,
-		inFlightTxIDs: make(map[ids.ID]struct{}),
+		inFlightTxIDs: set.NewSet[ids.ID](1),
 	}
 }
 
@@ -80,7 +81,7 @@ func (l *DefaultListener) RegisterIssued(tx *chain.Transaction) {
 	defer l.lock.Unlock()
 
 	l.issuedTxs++
-	l.inFlightTxIDs[tx.GetID()] = struct{}{}
+	l.inFlightTxIDs.Add(tx.GetID())
 }
 
 func (l *DefaultListener) markRemainingAsFailed() {
@@ -89,5 +90,5 @@ func (l *DefaultListener) markRemainingAsFailed() {
 	for txID := range l.inFlightTxIDs {
 		l.tracker.ObserveFailed(txID)
 	}
-	l.inFlightTxIDs = nil
+	l.inFlightTxIDs.Clear()
 }
