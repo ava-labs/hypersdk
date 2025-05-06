@@ -51,9 +51,6 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 		observerGroup.Go(func() error { return agent.Listener.Listen(observerCtx) })
 	}
 
-	const logInterval = 10 * time.Second
-	logTicker := time.NewTicker(logInterval)
-
 	// start issuing transactions sequentially from each issuer
 	issuerGroup := errgroup.Group{}
 	for _, agent := range o.agents {
@@ -65,12 +62,6 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 				}
 				lastIssued := i == o.config.TxsPerIssuer-1
 				agent.Listener.RegisterIssued(tx, lastIssued)
-
-				select {
-				case <-logTicker.C:
-					o.log.Info(agent.Tracker.String())
-				default:
-				}
 			}
 			return nil
 		})
