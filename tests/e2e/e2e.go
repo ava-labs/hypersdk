@@ -245,7 +245,6 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 
 		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(uris))
 		for i := range agents {
-			require.NoError(err, "creating websocket client")
 			listener := load.NewDefaultListener(clients[i], tracker)
 			agents[i] = load.NewAgent(issuers[i], listener, tracker)
 		}
