@@ -52,10 +52,10 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	loadFactory      chain.AuthFactory
-	loadIssuers      LoadIssuers
-	shortBurstConfig load.ShortBurstOrchestratorConfig
-	gradualConfig    load.GradualOrchestratorConfig
+	loadFactory   chain.AuthFactory
+	loadIssuers   LoadIssuers
+	burstConfig   load.BurstOrchestratorConfig
+	gradualConfig load.GradualOrchestratorConfig
 
 	createTransferF CreateTransfer
 
@@ -83,7 +83,7 @@ func SetWorkload(
 	abi abi.ABI,
 	loadAccount chain.AuthFactory,
 	generator LoadIssuers,
-	shortBurstConf load.ShortBurstOrchestratorConfig,
+	burstConf load.BurstOrchestratorConfig,
 	gradualConf load.GradualOrchestratorConfig,
 	createTransfer CreateTransfer,
 ) {
@@ -92,7 +92,7 @@ func SetWorkload(
 	expectedABI = abi
 	loadFactory = loadAccount
 	loadIssuers = generator
-	shortBurstConfig = shortBurstConf
+	burstConfig = burstConf
 	gradualConfig = gradualConf
 	createTransferF = createTransfer
 }
@@ -250,16 +250,16 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 			agents[i] = load.NewAgent(issuers[i], listener, tracker)
 		}
 
-		orchestrator, err := load.NewShortBurstOrchestrator(
+		orchestrator, err := load.NewBurstOrchestrator(
 			agents,
 			tc.Log(),
-			shortBurstConfig,
+			burstConfig,
 		)
 		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
-		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(agents))
+		numTxs := burstConfig.TxsPerIssuer * uint64(len(agents))
 		require.Equal(numTxs, tracker.GetObservedIssued())
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())

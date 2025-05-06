@@ -63,7 +63,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		expectedABI,
 		authFactories[2],
 		loadIssuers,
-		hload.ShortBurstOrchestratorConfig{
+		hload.BurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
 		},

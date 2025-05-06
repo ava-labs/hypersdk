@@ -11,28 +11,28 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var _ orchestrator = (*ShortBurstOrchestrator[any, any])(nil)
+var _ orchestrator = (*BurstOrchestrator[any, any])(nil)
 
-type ShortBurstOrchestratorConfig struct {
+type BurstOrchestratorConfig struct {
 	TxsPerIssuer uint64
 	Timeout      time.Duration
 }
 
-// ShortBurstOrchestrator tests the network by sending a fixed number of
+// BurstOrchestrator tests the network by sending a fixed number of
 // transactions en masse in a short timeframe.
-type ShortBurstOrchestrator[T, U comparable] struct {
+type BurstOrchestrator[T, U comparable] struct {
 	agents []Agent[T, U]
 	log    logging.Logger
 
-	config ShortBurstOrchestratorConfig
+	config BurstOrchestratorConfig
 }
 
-func NewShortBurstOrchestrator[T, U comparable](
+func NewBurstOrchestrator[T, U comparable](
 	agents []Agent[T, U],
 	log logging.Logger,
-	config ShortBurstOrchestratorConfig,
-) (*ShortBurstOrchestrator[T, U], error) {
-	return &ShortBurstOrchestrator[T, U]{
+	config BurstOrchestratorConfig,
+) (*BurstOrchestrator[T, U], error) {
+	return &BurstOrchestrator[T, U]{
 		agents: agents,
 		log:    log,
 		config: config,
@@ -41,7 +41,7 @@ func NewShortBurstOrchestrator[T, U comparable](
 
 // Execute orders issuers to send a fixed number of transactions and then waits
 // for all of their statuses to be confirmed or for a timeout to occur.
-func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
+func (o *BurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	observerCtx, observerCancel := context.WithCancel(ctx)
 	defer observerCancel()
 
