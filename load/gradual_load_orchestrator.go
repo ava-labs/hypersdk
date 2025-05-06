@@ -240,6 +240,7 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 					if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 						return err
 					}
+					agent.Listener.RegisterIssued(tx)
 				}
 				diff := time.Second - time.Since(currTime)
 				if diff > 0 {
