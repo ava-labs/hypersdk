@@ -17,23 +17,22 @@ import (
 var _ Listener[*chain.Transaction] = (*DefaultListener)(nil)
 
 type DefaultListener struct {
-	client   *ws.WebSocketClient
-	tracker  Tracker[ids.ID]
-	txTarget uint64
+	client  *ws.WebSocketClient
+	tracker Tracker[ids.ID]
 
 	lock          sync.RWMutex
 	issuedTxs     uint64
+	lastIssued    bool
 	receivedTxs   uint64
 	inFlightTxIDs set.Set[ids.ID]
 }
 
 // NewDefaultListener creates a new DefaultListener instance.
 // Set txTarget to 0 to never stop the [DefaultListener.Listen] method unless the context is cancelled.
-func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID], txTarget uint64) *DefaultListener {
+func NewDefaultListener(client *ws.WebSocketClient, tracker Tracker[ids.ID]) *DefaultListener {
 	return &DefaultListener{
 		client:        client,
 		tracker:       tracker,
-		txTarget:      txTarget,
 		inFlightTxIDs: set.NewSet[ids.ID](1),
 	}
 }
@@ -64,9 +63,7 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 		l.lock.Lock()
 		delete(l.inFlightTxIDs, txID)
 		l.receivedTxs++
-		if l.txTarget > 0 &&
-			l.issuedTxs == l.txTarget &&
-			len(l.inFlightTxIDs) == 0 {
+		if l.lastIssued && len(l.inFlightTxIDs) == 0 {
 			l.lock.Unlock()
 			break
 		}
@@ -75,10 +72,11 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 	return nil
 }
 
-func (l *DefaultListener) RegisterIssued(tx *chain.Transaction) {
+func (l *DefaultListener) RegisterIssued(tx *chain.Transaction, last bool) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
+	l.lastIssued = last
 	l.issuedTxs++
 	l.inFlightTxIDs.Add(tx.GetID())
 }

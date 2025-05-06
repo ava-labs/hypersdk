@@ -51,7 +51,7 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	issuerGroup := errgroup.Group{}
 	for _, agent := range o.agents {
 		issuerGroup.Go(func() error {
-			for range o.config.TxsPerIssuer {
+			for i := range o.config.TxsPerIssuer {
 				tx, err := agent.Generator.GenerateTx()
 				if err != nil {
 					return err
@@ -59,7 +59,8 @@ func (o *ShortBurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 				if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 					return err
 				}
-				agent.Listener.RegisterIssued(tx)
+				lastIssued := i == o.config.TxsPerIssuer-1
+				agent.Listener.RegisterIssued(tx, lastIssued)
 			}
 			return nil
 		})

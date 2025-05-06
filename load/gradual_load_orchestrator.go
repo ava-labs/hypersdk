@@ -240,7 +240,8 @@ func (o *GradualLoadOrchestrator[T, U]) issueTxs(ctx context.Context, currTarget
 					if err := agent.Issuer.IssueTx(ctx, tx); err != nil {
 						return err
 					}
-					agent.Listener.RegisterIssued(tx)
+					const lastIssued = false // always listen until listener context is cancelled
+					agent.Listener.RegisterIssued(tx, lastIssued)
 				}
 				diff := time.Second - time.Since(currTime)
 				if diff > 0 {

@@ -53,13 +53,13 @@ issuer can send.
 
 ### Tx Issuer
 
-The tx issuer is responsible for tracking the status of all sent transactions. 
-As it issues/confirms transactions, it notifies the tracker, so that it can 
+The tx issuer is responsible for tracking the status of all sent transactions.
+As it issues/confirms transactions, it notifies the tracker, so that it can
 maintain metrics across the generated load.
 
 ### Tracker
 
-The tracker is responsible for maintaining metrics for all sent txs. Since the 
+The tracker is responsible for maintaining metrics for all sent txs. Since the
 tracker is used by both the issuers and the orchestrator, all methods of the
 tracker must be thread safe.
 
@@ -75,13 +75,13 @@ once. This orchestrator is parameterizable via the following:
 - `N`: the number of transactions an issuer will send to the network.
 - `timeout`: the maximum amount of time which, after all transactions have been sent,
   the orchestrator will wait to hear the confirmation of all outstanding
-  transactions. 
+  transactions.
 
 ### Gradual Load
 
 The gradual load orchestrator sends transactions at an initial rate (TPS) and
 increases that rate until hitting the maxiumum desired rate or until the
-orchestrator determines that it can no longer make progress. 
+orchestrator determines that it can no longer make progress.
 
 The current TPS in the gradual load orchestrator is determined by taking the
 number of transactions confirmed in a given time window (`SustainedTime`) and
