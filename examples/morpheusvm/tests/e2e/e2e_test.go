@@ -117,11 +117,11 @@ func loadIssuers(
 		return nil, err
 	}
 
-	// Create tx generator
-	txGenerators := make([]hload.Issuer[*chain.Transaction], numFactories)
+	// Create issuers
+	issuers := make([]hload.Issuer[*chain.Transaction], numFactories)
 	for i := 0; i < numFactories; i++ {
-		txGenerators[i] = load.NewIssuer(authFactories[i], ruleFactory, balances[i], unitPrices, clients[i], tracker)
+		issuers[i] = load.NewIssuer(authFactories[i], ruleFactory, balances[i], unitPrices, clients[i], tracker)
 	}
 
-	return txGenerators, nil
+	return issuers, nil
 }
