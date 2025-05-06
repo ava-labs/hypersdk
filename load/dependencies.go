@@ -20,9 +20,11 @@ type Listener[T comparable] interface {
 	// Listen MUST return a nil error if the context is canceled.
 	Listen(ctx context.Context) error
 
-	// RegisterIssued informs the listener that a transaction was issued,
-	// and specifies if it was the last transaction to be issued.
-	RegisterIssued(tx T, last bool)
+	// RegisterIssued informs the listener that a transaction was issued.
+	RegisterIssued(tx T)
+
+	// IssuingDone informs the listener that no more transactions will be issued.
+	IssuingDone()
 }
 
 // Tracker keeps track of the status of transactions.

@@ -71,13 +71,19 @@ func (l *DefaultListener) Listen(ctx context.Context) (err error) {
 	return nil
 }
 
-func (l *DefaultListener) RegisterIssued(tx *chain.Transaction, last bool) {
+func (l *DefaultListener) RegisterIssued(tx *chain.Transaction) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
-	l.lastIssued = last
 	l.issuedTxs++
 	l.inFlightTxIDs.Add(tx.GetID())
+}
+
+func (l *DefaultListener) IssuingDone() {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	l.lastIssued = true
 }
 
 func (l *DefaultListener) markRemainingAsFailed() {

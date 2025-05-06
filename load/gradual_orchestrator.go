@@ -232,13 +232,13 @@ func (o *GradualOrchestrator[T, U]) issueTxs(ctx context.Context, currTargetTPS 
 				}
 				currTime := time.Now()
 				txsPerIssuer := uint64(math.Ceil(float64(currTargetTPS.Load())/float64(len(o.agents))) * o.config.TxRateMultiplier)
+				// always listen until listener context is cancelled, do not call agent.Listener.IssuingDone().
 				for range txsPerIssuer {
 					tx, err := agent.Issuer.GenerateAndIssueTx(ctx)
 					if err != nil {
 						return err
 					}
-					const lastIssued = false // always listen until listener context is cancelled
-					agent.Listener.RegisterIssued(tx, lastIssued)
+					agent.Listener.RegisterIssued(tx)
 				}
 				diff := time.Second - time.Since(currTime)
 				if diff > 0 {

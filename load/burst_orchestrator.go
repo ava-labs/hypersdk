@@ -55,13 +55,13 @@ func (o *BurstOrchestrator[T, U]) Execute(ctx context.Context) error {
 	issuerGroup := errgroup.Group{}
 	for _, agent := range o.agents {
 		issuerGroup.Go(func() error {
-			for i := range o.config.TxsPerIssuer {
+			defer agent.Listener.IssuingDone()
+			for range o.config.TxsPerIssuer {
 				tx, err := agent.Issuer.GenerateAndIssueTx(ctx)
 				if err != nil {
 					return err
 				}
-				lastIssued := i == o.config.TxsPerIssuer-1
-				agent.Listener.RegisterIssued(tx, lastIssued)
+				agent.Listener.RegisterIssued(tx)
 			}
 			return nil
 		})
