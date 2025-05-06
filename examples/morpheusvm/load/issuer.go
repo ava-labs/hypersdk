@@ -9,6 +9,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -29,7 +30,7 @@ type Issuer struct {
 	unitPrices  fees.Dimensions
 
 	client  *ws.WebSocketClient
-	tracker Tracker
+	tracker load.Tracker[ids.ID]
 }
 
 func NewIssuer(
@@ -38,7 +39,7 @@ func NewIssuer(
 	currBalance uint64,
 	unitPrices fees.Dimensions,
 	client *ws.WebSocketClient,
-	tracker Tracker,
+	tracker load.Tracker[ids.ID],
 ) *Issuer {
 	return &Issuer{
 		authFactory: authFactory,
