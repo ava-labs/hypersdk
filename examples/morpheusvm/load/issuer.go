@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
+
 	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
