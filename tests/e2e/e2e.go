@@ -52,10 +52,10 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	loadFactory       chain.AuthFactory
-	loadIssuers       LoadIssuers
-	shortBurstConfig  load.ShortBurstOrchestratorConfig
-	gradualLoadConfig load.GradualLoadOrchestratorConfig
+	loadFactory      chain.AuthFactory
+	loadIssuers      LoadIssuers
+	shortBurstConfig load.ShortBurstOrchestratorConfig
+	gradualConfig    load.GradualOrchestratorConfig
 
 	createTransferF CreateTransfer
 
@@ -84,7 +84,7 @@ func SetWorkload(
 	loadAccount chain.AuthFactory,
 	generator LoadIssuers,
 	shortBurstConf load.ShortBurstOrchestratorConfig,
-	gradualLoadConf load.GradualLoadOrchestratorConfig,
+	gradualConf load.GradualOrchestratorConfig,
 	createTransfer CreateTransfer,
 ) {
 	networkConfig = networkConfigImpl
@@ -93,7 +93,7 @@ func SetWorkload(
 	loadFactory = loadAccount
 	loadIssuers = generator
 	shortBurstConfig = shortBurstConf
-	gradualLoadConfig = gradualLoadConf
+	gradualConfig = gradualConf
 	createTransferF = createTransfer
 }
 
@@ -303,16 +303,16 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 			agents[i] = load.NewAgent(issuers[i], listener, tracker)
 		}
 
-		orchestrator, err := load.NewGradualLoadOrchestrator(
+		orchestrator, err := load.NewGradualOrchestrator(
 			agents,
 			tc.Log(),
-			gradualLoadConfig,
+			gradualConfig,
 		)
 		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
-		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
+		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualConfig.MaxTPS)
 
 		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, loadFactory))
 	})

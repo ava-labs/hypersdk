@@ -67,7 +67,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
 		},
-		hload.DefaultGradualLoadOrchestratorConfig(),
+		hload.DefaultGradualOrchestratorConfig(),
 		createTransfer,
 	)
 
