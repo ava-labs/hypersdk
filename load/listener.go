@@ -87,8 +87,8 @@ func (l *DefaultListener) IssuingDone() {
 }
 
 func (l *DefaultListener) markRemainingAsFailed() {
-	l.lock.RLock()
-	defer l.lock.RUnlock()
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	for txID := range l.inFlightTxIDs {
 		l.tracker.ObserveFailed(txID)
 	}
