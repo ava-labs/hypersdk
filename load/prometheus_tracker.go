@@ -31,7 +31,12 @@ type PrometheusTracker[T comparable] struct {
 	txLatency           prometheus.Histogram
 }
 
-func NewPrometheusTracker[T comparable](reg *prometheus.Registry) (*PrometheusTracker[T], error) {
+type PrometheusRegistry interface {
+	prometheus.Registerer
+	prometheus.Gatherer
+}
+
+func NewPrometheusTracker[T comparable](reg PrometheusRegistry) (*PrometheusTracker[T], error) {
 	prometheusTracker := &PrometheusTracker[T]{
 		outstandingTxs: make(map[T]time.Time),
 		txsIssuedCounter: prometheus.NewCounter(prometheus.CounterOpts{
