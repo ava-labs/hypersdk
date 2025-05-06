@@ -5,6 +5,8 @@ package load
 
 import (
 	"context"
+
+	"go.uber.org/zap"
 )
 
 type Issuer[T comparable] interface {
@@ -45,6 +47,13 @@ type Tracker[T comparable] interface {
 	// GetObservedFailed returns the number of transactions that the tracker has
 	// confirmed failed.
 	GetObservedFailed() uint64
+
+	// String returns a string representation of the tracker state.
+	String() string
+}
+
+type Logger interface {
+	Info(msg string, args ...zap.Field)
 }
 
 // orchestrator executes the load test by coordinating the issuers to send
