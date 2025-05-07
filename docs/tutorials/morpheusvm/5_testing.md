@@ -622,7 +622,7 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 
 ```
 
-If the above looks familar to `integration_test.go`, that's because `e2e` tests
+If the above looks familiar to `integration_test.go`, that's because `e2e` tests
 follow the same logic as integration tests! The HyperSDK also has a framework
 for `e2e` tests, which only requires us to pass in required values like the ABI
 and a transaction generator.
