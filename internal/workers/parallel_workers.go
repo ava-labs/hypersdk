@@ -12,7 +12,7 @@ var (
 
 // ParallelWorkers is a struct representing a workers pool.
 //
-// Limit number of concurrent goroutines with resetable error
+// Limit number of concurrent goroutines with resettable error
 // Ensure minimal overhead for parallel ops
 type ParallelWorkers struct {
 	count int               // Number of workers in the pool

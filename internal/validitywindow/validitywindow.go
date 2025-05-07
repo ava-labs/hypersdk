@@ -80,7 +80,7 @@ func NewTimeValidityWindow[T emap.Item](
 }
 
 func (v *TimeValidityWindow[T]) Accept(blk ExecutionBlock[T]) {
-	// Grab the lock before modifiying seen
+	// Grab the lock before modifying seen
 	v.lock.Lock()
 	defer v.lock.Unlock()
 

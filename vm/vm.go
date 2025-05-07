@@ -430,7 +430,7 @@ func (vm *VM) extractStateHeight() (uint64, error) {
 func (vm *VM) extractLatestOutputBlock(ctx context.Context) (*chain.OutputBlock, error) {
 	stateHeight, err := vm.extractStateHeight()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get state hegiht for latest output block: %w", err)
+		return nil, fmt.Errorf("failed to get state height for latest output block: %w", err)
 	}
 	lastIndexedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil {
