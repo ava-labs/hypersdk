@@ -71,12 +71,13 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		createTransfer,
 	)
 
-	return fixture.NewTestEnvironment(e2e.NewTestContext(), flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
+	tc := e2e.NewEventHandlerTestContext()
+	return fixture.NewTestEnvironment(tc, flagVars, owner, testingNetworkConfig, consts.ID).Marshal()
 }, func(envBytes []byte) {
 	// Run in every ginkgo process
 
 	// Initialize the local test environment from the global state
-	e2e.InitSharedTestEnvironment(ginkgo.GinkgoT(), envBytes)
+	e2e.InitSharedTestEnvironment(e2e.NewEventHandlerTestContext(), envBytes)
 })
 
 func createTransfer(to codec.Address, amount uint64, nonce uint64) chain.Action {
