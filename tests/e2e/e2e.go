@@ -243,10 +243,10 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		)
 		require.NoError(err)
 
-		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(uris))
+		agents := make([]load.Agent[*chain.Transaction], len(uris))
 		for i := range agents {
 			listener := load.NewDefaultListener(clients[i], tracker)
-			agents[i] = load.NewAgent(issuers[i], listener, tracker)
+			agents[i] = load.NewAgent(issuers[i], listener)
 		}
 
 		orchestrator, err := load.NewBurstOrchestrator(
@@ -296,14 +296,15 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		)
 		require.NoError(err)
 
-		agents := make([]load.Agent[*chain.Transaction, ids.ID], len(uris))
+		agents := make([]load.Agent[*chain.Transaction], len(uris))
 		for i := range agents {
 			listener := load.NewDefaultListener(clients[i], tracker)
-			agents[i] = load.NewAgent(issuers[i], listener, tracker)
+			agents[i] = load.NewAgent(issuers[i], listener)
 		}
 
 		orchestrator, err := load.NewGradualOrchestrator(
 			agents,
+			tracker,
 			tc.Log(),
 			gradualConfig,
 		)

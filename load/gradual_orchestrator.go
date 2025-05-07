@@ -67,7 +67,8 @@ func DefaultGradualOrchestratorConfig() GradualOrchestratorConfig {
 // the network can no longer make progress (i.e. the rate at the network accepts
 // transactions is less than currTargetTPS).
 type GradualOrchestrator[T, U comparable] struct {
-	agents []Agent[T, U]
+	agents  []Agent[T]
+	tracker Tracker[U]
 
 	log logging.Logger
 
@@ -80,14 +81,16 @@ type GradualOrchestrator[T, U comparable] struct {
 }
 
 func NewGradualOrchestrator[T, U comparable](
-	agents []Agent[T, U],
+	agents []Agent[T],
+	tracker Tracker[U],
 	log logging.Logger,
 	config GradualOrchestratorConfig,
 ) (*GradualOrchestrator[T, U], error) {
 	return &GradualOrchestrator[T, U]{
-		agents: agents,
-		log:    log,
-		config: config,
+		agents:  agents,
+		tracker: tracker,
+		log:     log,
+		config:  config,
 	}, nil
 }
 
@@ -124,7 +127,7 @@ func (o *GradualOrchestrator[T, U]) Execute(ctx context.Context) error {
 // 3. the maximum number of attempts to reach a target TPS has been reached
 func (o *GradualOrchestrator[T, U]) run(ctx context.Context) bool {
 	var (
-		prevConfirmed        = GetTotalObservedConfirmed(o.agents)
+		prevConfirmed        = o.tracker.GetObservedConfirmed()
 		prevTime             = time.Now()
 		currTargetTPS        = new(atomic.Uint64)
 		attempts      uint64 = 1
@@ -150,7 +153,7 @@ func (o *GradualOrchestrator[T, U]) run(ctx context.Context) bool {
 			break // Case 1
 		}
 
-		currConfirmed := GetTotalObservedConfirmed(o.agents)
+		currConfirmed := o.tracker.GetObservedConfirmed()
 		currTime := time.Now()
 
 		tps := computeTPS(prevConfirmed, currConfirmed, currTime.Sub(prevTime))

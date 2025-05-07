@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var _ orchestrator = (*BurstOrchestrator[any, any])(nil)
+var _ orchestrator = (*BurstOrchestrator[any])(nil)
 
 type BurstOrchestratorConfig struct {
 	TxsPerIssuer uint64
@@ -20,19 +20,19 @@ type BurstOrchestratorConfig struct {
 
 // BurstOrchestrator tests the network by sending a fixed number of
 // transactions en masse in a short timeframe.
-type BurstOrchestrator[T, U comparable] struct {
-	agents []Agent[T, U]
+type BurstOrchestrator[T comparable] struct {
+	agents []Agent[T]
 	log    logging.Logger
 
 	config BurstOrchestratorConfig
 }
 
-func NewBurstOrchestrator[T, U comparable](
-	agents []Agent[T, U],
+func NewBurstOrchestrator[T comparable](
+	agents []Agent[T],
 	log logging.Logger,
 	config BurstOrchestratorConfig,
-) (*BurstOrchestrator[T, U], error) {
-	return &BurstOrchestrator[T, U]{
+) (*BurstOrchestrator[T], error) {
+	return &BurstOrchestrator[T]{
 		agents: agents,
 		log:    log,
 		config: config,
@@ -41,7 +41,7 @@ func NewBurstOrchestrator[T, U comparable](
 
 // Execute orders issuers to send a fixed number of transactions and then waits
 // for all of their statuses to be confirmed or for a timeout to occur.
-func (o *BurstOrchestrator[T, U]) Execute(ctx context.Context) error {
+func (o *BurstOrchestrator[T]) Execute(ctx context.Context) error {
 	observerCtx, observerCancel := context.WithCancel(ctx)
 	defer observerCancel()
 

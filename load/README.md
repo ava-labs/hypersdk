@@ -4,7 +4,7 @@ This package provides generic utilities for blockchain load testing. We break lo
 
 - tx issuer(s)
 - tx listener(s)
-- tracker(s)
+- tracker
 - orchestrator
 
 The transaction issuer(s) and listener(s) may be VM specific and provide the
@@ -21,22 +21,18 @@ graph
     subgraph "Agent 3"
         A3_I["Issuer 3"]
         A3_L["Listener 3"]
-        A3_T["Tracker 3"]
     end
     subgraph "Agent 2"
         A2_I["Issuer 2"]
         A2_L["Listener 2"]
-        A2_T["Tracker 2"]
     end
     subgraph "Agent 1"
         A1_I["Issuer 1"]
         A1_L["Listener 1"]
-        A1_T["Tracker 1"]
     end
+    T["Tracker"]
 
-    A1_T --> O
-    A2_T --> O
-    A3_T --> O
+    T --> O
 
     O --> A1_I
     O --> A2_I
@@ -46,12 +42,12 @@ graph
     A2_I --> A2_L
     A3_I --> A3_L
 
-    A1_I --> A1_T
-    A2_I --> A2_T
-    A3_I --> A3_T
-    A1_L --> A1_T
-    A2_L --> A2_T
-    A3_L --> A3_T
+    A1_I --> T
+    A2_I --> T
+    A3_I --> T
+    A1_L --> T
+    A2_L --> T
+    A3_L --> T
 ```
 
 ### Orchestrator
