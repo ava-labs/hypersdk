@@ -62,12 +62,18 @@ type Interface[T emap.Item] interface {
 //  1. Included - The item is currently tracked within validity window
 //  2. Expired - The item has passed its expiry time and is automatically removed
 //     from tracking. Once expired, an item is considered invalid for its original
-//     purpose, but this expiration also means it could potentially be included
-//     again in a new transaction.
+//     purpose. After the validity window period elapses, the item's ID is
+//     removed from the TimeValidityWindow tracking map (seen emap.EMap) through
+//     the SetMin method. This removal means that while the original transaction
+//     remains cryptographically unique and cannot be replayed, a completely new
+//     transaction could potentially reuse the same identifier space once the ID
+//     is no longer tracked by the validity window.
 //
 // TimeValidityWindow builds on an assumption of ChainIndex being up to date to populate TimeValidityWindow state.
-// This means ChainIndex must provide access to all blocks within the validity window (both in-memory and saved on-disk),
-// as missing blocks would create gaps in transaction history that could allow replay attacks and state inconsistencies.
+// This means ChainIndex must provide access to all blocks within the validity window
+// (both in-memory and saved on-disk),
+// as missing blocks would create gaps in transaction history
+// that could allow replay attacks and state inconsistencies.
 type TimeValidityWindow[T emap.Item] struct {
 	log                     logging.Logger
 	tracer                  trace.Tracer
