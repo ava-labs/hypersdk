@@ -52,10 +52,10 @@ var (
 	txWorkload    workload.TxWorkload
 	expectedABI   abi.ABI
 
-	loadFactory       chain.AuthFactory
-	loadTxGenerator   LoadTxGenerator
-	shortBurstConfig  load.ShortBurstOrchestratorConfig
-	gradualLoadConfig load.GradualLoadOrchestratorConfig
+	loadFactory   chain.AuthFactory
+	loadIssuers   LoadIssuers
+	burstConfig   load.BurstOrchestratorConfig
+	gradualConfig load.GradualOrchestratorConfig
 
 	createTransferF CreateTransfer
 
@@ -63,14 +63,16 @@ var (
 	ErrTxFailed          = errors.New("transaction failed")
 )
 
-// LoadTxGenerator returns the components necessary to instantiate an
+// LoadIssuers returns the components necessary to instantiate an
 // Orchestrator.
-// We use a generator here since the node URIs are not known until runtime.
-type LoadTxGenerator func(
+// LoadIssuers is an initializer function since the node URIs are not known until runtime.
+type LoadIssuers func(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
-) ([]load.TxGenerator[*chain.Transaction], error)
+	clients []*ws.WebSocketClient,
+	tracker load.Tracker[ids.ID],
+) ([]load.Issuer[*chain.Transaction], error)
 
 // CreateTransfer should return an action that transfers amount to the given address
 type CreateTransfer func(to codec.Address, amount uint64, nonce uint64) chain.Action
@@ -80,18 +82,18 @@ func SetWorkload(
 	workloadTxGenerator workload.TxGenerator,
 	abi abi.ABI,
 	loadAccount chain.AuthFactory,
-	generator LoadTxGenerator,
-	shortBurstConf load.ShortBurstOrchestratorConfig,
-	gradualLoadConf load.GradualLoadOrchestratorConfig,
+	generator LoadIssuers,
+	burstConf load.BurstOrchestratorConfig,
+	gradualConf load.GradualOrchestratorConfig,
 	createTransfer CreateTransfer,
 ) {
 	networkConfig = networkConfigImpl
 	txWorkload = workload.TxWorkload{Generator: workloadTxGenerator}
 	expectedABI = abi
 	loadFactory = loadAccount
-	loadTxGenerator = generator
-	shortBurstConfig = shortBurstConf
-	gradualLoadConfig = gradualLoadConf
+	loadIssuers = generator
+	burstConfig = burstConf
+	gradualConfig = gradualConf
 	createTransferF = createTransfer
 }
 
@@ -221,31 +223,42 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		accounts, err := distributeFunds(ctx, tc, createTransferF, loadFactory, uint64(len(uris)))
 		require.NoError(err)
 
-		txGenerators, err := loadTxGenerator(
+		clients := make([]*ws.WebSocketClient, len(uris))
+		for i := range clients {
+			clients[i], err = ws.NewWebSocketClient(
+				uris[i%len(uris)],
+				ws.DefaultHandshakeTimeout,
+				pubsub.MaxPendingMessages,
+				pubsub.MaxReadMessageSize,
+			)
+			require.NoError(err, "creating websocket client")
+		}
+
+		issuers, err := loadIssuers(
 			ctx,
 			uris[0],
 			accounts,
+			clients,
+			tracker,
 		)
 		require.NoError(err)
 
-		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		for i := 0; i < len(txGenerators); i++ {
-			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
-			require.NoError(err)
-			issuers[i] = issuer
+		agents := make([]load.Agent[*chain.Transaction], len(uris))
+		for i := range agents {
+			listener := load.NewDefaultListener(clients[i], tracker)
+			agents[i] = load.NewAgent(issuers[i], listener)
 		}
 
-		orchestrator, err := load.NewShortBurstOrchestrator(
-			txGenerators,
-			issuers,
-			tracker,
-			shortBurstConfig,
+		orchestrator, err := load.NewBurstOrchestrator(
+			agents,
+			tc.Log(),
+			burstConfig,
 		)
 		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
-		numTxs := shortBurstConfig.TxsPerIssuer * uint64(len(issuers))
+		numTxs := burstConfig.TxsPerIssuer * uint64(len(agents))
 		require.Equal(numTxs, tracker.GetObservedIssued())
 		require.Equal(numTxs, tracker.GetObservedConfirmed())
 		require.Equal(uint64(0), tracker.GetObservedFailed())
@@ -263,32 +276,43 @@ var _ = ginkgo.Describe("[HyperSDK Load Workloads]", ginkgo.Ordered, ginkgo.Seri
 		accounts, err := distributeFunds(ctx, tc, createTransferF, loadFactory, uint64(len(uris)))
 		require.NoError(err)
 
-		txGenerators, err := loadTxGenerator(
+		clients := make([]*ws.WebSocketClient, len(uris))
+		for i := range clients {
+			clients[i], err = ws.NewWebSocketClient(
+				uris[i%len(uris)],
+				ws.DefaultHandshakeTimeout,
+				pubsub.MaxPendingMessages,
+				pubsub.MaxReadMessageSize,
+			)
+			require.NoError(err, "creating websocket client")
+		}
+
+		issuers, err := loadIssuers(
 			ctx,
 			uris[0],
 			accounts,
+			clients,
+			tracker,
 		)
 		require.NoError(err)
 
-		issuers := make([]load.Issuer[*chain.Transaction], len(txGenerators))
-		for i := 0; i < len(txGenerators); i++ {
-			issuer, err := load.NewDefaultIssuer(uris[i%len(uris)], tracker)
-			require.NoError(err)
-			issuers[i] = issuer
+		agents := make([]load.Agent[*chain.Transaction], len(uris))
+		for i := range agents {
+			listener := load.NewDefaultListener(clients[i], tracker)
+			agents[i] = load.NewAgent(issuers[i], listener)
 		}
 
-		orchestrator, err := load.NewGradualLoadOrchestrator(
-			txGenerators,
-			issuers,
+		orchestrator, err := load.NewGradualOrchestrator(
+			agents,
 			tracker,
 			tc.Log(),
-			gradualLoadConfig,
+			gradualConfig,
 		)
 		require.NoError(err)
 
 		require.NoError(orchestrator.Execute(ctx))
 
-		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualLoadConfig.MaxTPS)
+		require.GreaterOrEqual(tracker.GetObservedIssued(), gradualConfig.MaxTPS)
 
 		require.NoError(consolidateFunds(ctx, tc, createTransferF, accounts, loadFactory))
 	})
