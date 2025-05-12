@@ -88,10 +88,6 @@ func NewTimeValidityWindow[T emap.Item](
 	head ExecutionBlock[T],
 	getTimeValidityWindowF GetTimeValidityWindowFunc,
 ) (*TimeValidityWindow[T], error) {
-	if head == nil {
-		return nil, fmt.Errorf("cannot construct time validity window: %w", ErrNilInitialBlock)
-	}
-
 	t := &TimeValidityWindow[T]{
 		log:                   log,
 		tracer:                tracer,
