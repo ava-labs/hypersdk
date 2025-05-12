@@ -56,24 +56,22 @@ type Interface[T emap.Item] interface {
 }
 
 // TimeValidityWindow is a timestamp-based replay protection mechanism.
-// It maintains a configurable time window of emap.Item entries that have been
-// included.
-// Each emap.Item within TimeValidityWindow has two states:
-//  1. Included - The item is currently tracked within validity window
-//  2. Expired - The item has passed its expiry time and is automatically removed
-//     from tracking. Once expired, an item is considered invalid for its original
-//     purpose. After the validity window period elapses, the item's ID is
-//     removed from the TimeValidityWindow tracking map (seen emap.EMap) through
-//     the SetMin method. This removal means that while the original transaction
-//     remains cryptographically unique and cannot be replayed, a completely new
-//     transaction could potentially reuse the same identifier space once the ID
-//     is no longer tracked by the validity window.
+// It maintains a configurable timestamp validity window of emap.Item entries
+// that have been with a specific expiry time.
 //
-// TimeValidityWindow builds on an assumption of ChainIndex being up to date to populate TimeValidityWindow state.
-// This means ChainIndex must provide access to all blocks within the validity window
-// (both in-memory and saved on-disk),
-// as missing blocks would create gaps in transaction history
-// that could allow replay attacks and state inconsistencies.
+// Items can be:
+// 1. Too far in the future (item timestamp > block timestamp + validity window)
+// 2. Currently valid for inclusion (block timestamp <= item timestamp <= block timestamp + validity window)
+// 3. Expired (item timestamp < block timestamp)
+//
+// To prevent duplicates; we track all items included in a block until they expire.
+// Once they are invalidated by their timestamp, we remove them from tracking as it's no
+// longer necessary to track them to guarantee that they cannot be replayed.
+//
+// TimeValidityWindow assumes the ChainIndex contains all blocks with timestamps
+// in the validity window interval +1 extra block below the interval minimum.
+// The extra block below the interval minimum is necessary to verify that every
+// block within the interval has been included.
 type TimeValidityWindow[T emap.Item] struct {
 	log                     logging.Logger
 	tracer                  trace.Tracer
