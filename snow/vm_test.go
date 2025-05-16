@@ -137,7 +137,7 @@ func (t *TestChain) Initialize(
 	chainInput ChainInput,
 	_ *VM[*TestBlock, *TestBlock, *TestBlock],
 ) (ChainIndex[*TestBlock], *TestBlock, *TestBlock, bool, error) {
-	chainIndex, err := chainindex.New[*TestBlock](chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
+	chainIndex, err := chainindex.New[*TestBlock](ctx, chainInput.SnowCtx.Log, prometheus.NewRegistry(), chainindex.NewDefaultConfig(), t, memdb.New())
 	if err != nil {
 		return nil, nil, nil, false, err
 	}

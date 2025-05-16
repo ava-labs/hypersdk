@@ -27,7 +27,6 @@ type Chain struct {
 func NewChain(
 	tracer trace.Tracer,
 	registerer *prometheus.Registry,
-	parser Parser,
 	mempool Mempool,
 	logger logging.Logger,
 	ruleFactory RuleFactory,
@@ -35,6 +34,7 @@ func NewChain(
 	balanceHandler BalanceHandler,
 	authVerifiers workers.Workers,
 	authEngines AuthEngines,
+	blockParser *BlockParser,
 	validityWindow ValidityWindow,
 	config Config,
 ) (*Chain, error) {
@@ -72,7 +72,7 @@ func NewChain(
 			metadataManager,
 			balanceHandler,
 		),
-		blockParser: NewBlockParser(tracer, parser),
+		blockParser: blockParser,
 		accepter:    NewAccepter(tracer, validityWindow, metrics),
 	}, nil
 }

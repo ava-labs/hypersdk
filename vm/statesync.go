@@ -69,7 +69,7 @@ func (vm *VM) initStateSync(ctx context.Context) error {
 		vm,
 		p2p.PeerSampler{Peers: vm.network.Peers},
 	)
-	syncer := validitywindow.NewSyncer[*chain.Transaction, *chain.ExecutionBlock](vm, vm.chainTimeValidityWindow, blockFetcherClient, func(time int64) int64 {
+	syncer := validitywindow.NewSyncer[*chain.Transaction, *chain.ExecutionBlock](vm.chainStore, vm.chainTimeValidityWindow, blockFetcherClient, func(time int64) int64 {
 		return vm.ruleFactory.GetRules(time).GetValidityWindow()
 	})
 

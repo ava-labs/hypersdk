@@ -62,7 +62,11 @@ const (
 	blockFetchHandleID   = 0x3
 )
 
-var ErrNotAdded = errors.New("not added")
+var (
+	errInconsistentValidityWindow = errors.New("critical error: validity window's partial state may lead to inconsistencies")
+
+	ErrNotAdded = errors.New("not added")
+)
 
 var (
 	_ hsnow.Block = (*chain.ExecutionBlock)(nil)
@@ -297,9 +301,24 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, fmt.Errorf("failed to apply options : %w", err)
 	}
 
-	vm.chainTimeValidityWindow = validitywindow.NewTimeValidityWindow(vm.snowCtx.Log, vm.tracer, vm, func(timestamp int64) int64 {
+	executionBlockParser := chain.NewBlockParser(vm.Tracer(), vm.txParser)
+
+	if err := vm.initChainStore(ctx, executionBlockParser); err != nil {
+		return nil, nil, nil, false, err
+	}
+
+	lastAccepted, err := vm.initLastAccepted(ctx)
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to initialize last accepted block: %w", err)
+	}
+
+	vm.chainTimeValidityWindow, err = validitywindow.NewTimeValidityWindow[*chain.Transaction](ctx, vm.snowCtx.Log, vm.tracer, vm, lastAccepted, func(timestamp int64) int64 {
 		return vm.ruleFactory.GetRules(timestamp).GetValidityWindow()
 	})
+	if err != nil {
+		return nil, nil, nil, false, fmt.Errorf("failed to initialize chain time validity window: %w", err)
+	}
+
 	chainRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, chainNamespace)
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to make %q registry: %w", chainNamespace, err)
@@ -308,10 +327,10 @@ func (vm *VM) Initialize(
 	if err != nil {
 		return nil, nil, nil, false, fmt.Errorf("failed to get chain config: %w", err)
 	}
+
 	vm.chain, err = chain.NewChain(
 		vm.Tracer(),
 		chainRegistry,
-		vm.txParser,
 		vm.Mempool(),
 		vm.Logger(),
 		vm.ruleFactory,
@@ -319,6 +338,7 @@ func (vm *VM) Initialize(
 		vm.BalanceHandler(),
 		vm.AuthVerifiers(),
 		vm.authEngines,
+		executionBlockParser,
 		vm.chainTimeValidityWindow,
 		chainConfig,
 	)
@@ -326,15 +346,7 @@ func (vm *VM) Initialize(
 		return nil, nil, nil, false, err
 	}
 
-	if err := vm.initChainStore(); err != nil {
-		return nil, nil, nil, false, err
-	}
-
 	if err := vm.initStateSync(ctx); err != nil {
-		return nil, nil, nil, false, err
-	}
-
-	if err := vm.populateValidityWindow(ctx); err != nil {
 		return nil, nil, nil, false, err
 	}
 
@@ -354,13 +366,11 @@ func (vm *VM) Initialize(
 	}
 
 	stateReady := !vm.SyncClient.MustStateSync()
-	var lastAccepted *chain.OutputBlock
-	if stateReady {
-		lastAccepted, err = vm.initLastAccepted(ctx)
-		if err != nil {
-			return nil, nil, nil, false, err
-		}
+	// The branch is executed when the VM must preform state sync
+	if !stateReady {
+		lastAccepted = nil
 	}
+
 	return vm.chainStore, lastAccepted, lastAccepted, stateReady, nil
 }
 
@@ -368,7 +378,7 @@ func (vm *VM) SetConsensusIndex(consensusIndex *hsnow.ConsensusIndex[*chain.Exec
 	vm.consensusIndex = consensusIndex
 }
 
-func (vm *VM) initChainStore() error {
+func (vm *VM) initChainStore(ctx context.Context, executionBlockParser *chain.BlockParser) error {
 	blockDBRegistry, err := metrics.MakeAndRegister(vm.snowCtx.Metrics, blockDB)
 	if err != nil {
 		return fmt.Errorf("failed to register %s metrics: %w", blockDB, err)
@@ -383,13 +393,18 @@ func (vm *VM) initChainStore() error {
 	if err != nil {
 		return fmt.Errorf("failed to create chain index config: %w", err)
 	}
-	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](vm.snowCtx.Log, blockDBRegistry, config, vm.chain, chainStoreDB)
+	vm.chainStore, err = chainindex.New[*chain.ExecutionBlock](ctx, vm.snowCtx.Log, blockDBRegistry, config, executionBlockParser, chainStoreDB)
 	if err != nil {
 		return fmt.Errorf("failed to create chain index: %w", err)
 	}
 	return nil
 }
 
+// initLastAccepted determines and loads the last accepted block during VM initialization.
+// It serves three critical purposes:
+// 1. For a fresh chain: Creates and commits genesis block
+// 2. For an existing chain: Load the last accepted block that corresponds to current state
+// 3. Ensures state consistency between the chain store and state database
 func (vm *VM) initLastAccepted(ctx context.Context) (*chain.OutputBlock, error) {
 	lastAcceptedHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
 	if err != nil && err != database.ErrNotFound {
@@ -521,6 +536,8 @@ func (vm *VM) initGenesisAsLastAccepted(ctx context.Context) (*chain.OutputBlock
 	}, nil
 }
 
+// startNormalOp initializes components required for normal VM operation when transitioning
+// from bootstrapping or state sync
 func (vm *VM) startNormalOp(ctx context.Context) error {
 	vm.builder.Start()
 	vm.snowApp.AddCloser("builder", func() error {
@@ -544,8 +561,22 @@ func (vm *VM) startNormalOp(ctx context.Context) error {
 		return fmt.Errorf("failed to add tx gossip handler: %w", err)
 	}
 	vm.checkActivity(ctx)
-	vm.normalOp.Store(true)
 
+	lastAccepted, err := vm.LastAcceptedBlock(ctx)
+	if err != nil {
+		return err
+	}
+	executionBlk, err := vm.GetExecutionBlock(ctx, lastAccepted.GetID())
+	if err != nil {
+		return err
+	}
+
+	isValidityWindowComplete := vm.chainTimeValidityWindow.Complete(ctx, executionBlk)
+	if !isValidityWindowComplete {
+		return errInconsistentValidityWindow
+	}
+
+	vm.normalOp.Store(true)
 	return nil
 }
 
@@ -700,30 +731,4 @@ func (vm *VM) Submit(
 	vm.metrics.mempoolSize.Set(float64(vm.mempool.Len(ctx)))
 	vm.snowCtx.Log.Info("Submitted tx(s)", zap.Int("validTxs", len(validTxs)), zap.Int("invalidTxs", len(errs)-len(validTxs)), zap.Int("mempoolSize", vm.mempool.Len(ctx)))
 	return errs
-}
-
-// populateValidityWindow populates the VM's time validity window on startup,
-// ensuring it contains recent transactions even if state sync is skipped (e.g., due to restart).
-// This is necessary because a node might restart with only a few blocks behind (or slightly ahead)
-// of the network, and thus opt not to trigger state sync. Without backfilling, the node's validity window
-// may be incomplete, causing the node to accept a duplicate transaction that the network already processed.
-
-// When Initialize is called, vm.consensusIndex is nil—it is set later via SetConsensusIndex.
-// Therefore, we must use the chainStore (which reads blocks from disk) to backfill the validity window.
-// This prepopulation ensures the validity window is complete, even if state sync is skipped.
-func (vm *VM) populateValidityWindow(ctx context.Context) error {
-	lastAcceptedBlkHeight, err := vm.chainStore.GetLastAcceptedHeight(ctx)
-	if err != nil {
-		if errors.Is(err, database.ErrNotFound) {
-			return nil
-		}
-		return err
-	}
-	lastAcceptedBlock, err := vm.chainStore.GetBlockByHeight(ctx, lastAcceptedBlkHeight)
-	if err != nil {
-		return err
-	}
-
-	vm.chainTimeValidityWindow.PopulateValidityWindow(ctx, lastAcceptedBlock)
-	return nil
 }
