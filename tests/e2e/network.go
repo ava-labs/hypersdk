@@ -58,12 +58,7 @@ func NewNetwork(tc *e2e.GinkgoTestContext) *Network {
 }
 
 func (n *Network) URIs() []string {
-	nodeURIs := n.network.GetNodeURIs()
-	uris := make([]string, 0, len(nodeURIs))
-	for _, nodeURI := range nodeURIs {
-		uris = append(uris, formatURI(nodeURI.URI, n.blockchainID))
-	}
-	return uris
+	return formatURIs(getE2EBaseURIs(e2e.NewTestContext(), n.network), n.blockchainID)
 }
 
 func (n *Network) GetRuleFactory(ctx context.Context) (chain.RuleFactory, error) {

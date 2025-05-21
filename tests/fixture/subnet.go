@@ -24,7 +24,7 @@ func NewHyperVMSubnet(name string, vmID ids.ID, genesisBytes []byte, nodes ...*t
 				}`,
 			},
 		},
-		Config: tmpnet.FlagsMap{
+		Config: map[string]any{
 			"proposerMinBlockDelay":       0,
 			"proposerNumHistoricalBlocks": 50_000,
 		},
