@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/tests/fixture/e2e"
 	"github.com/stretchr/testify/require"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/ava-labs/hypersdk/abi"
 	"github.com/ava-labs/hypersdk/api/jsonrpc"
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/codec"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
@@ -60,12 +62,12 @@ var _ = ginkgo.SynchronizedBeforeSuite(func() []byte {
 		generator,
 		expectedABI,
 		authFactories[2],
-		loadTxGenerators,
-		hload.ShortBurstOrchestratorConfig{
+		loadIssuers,
+		hload.BurstOrchestratorConfig{
 			TxsPerIssuer: 1_000,
 			Timeout:      20 * time.Second,
 		},
-		hload.DefaultGradualLoadOrchestratorConfig(),
+		hload.DefaultGradualOrchestratorConfig(),
 		createTransfer,
 	)
 
@@ -85,11 +87,13 @@ func createTransfer(to codec.Address, amount uint64, nonce uint64) chain.Action 
 	}
 }
 
-func loadTxGenerators(
+func loadIssuers(
 	ctx context.Context,
 	uri string,
 	authFactories []chain.AuthFactory,
-) ([]hload.TxGenerator[*chain.Transaction], error) {
+	clients []*ws.WebSocketClient,
+	tracker hload.Tracker[ids.ID],
+) ([]hload.Issuer[*chain.Transaction], error) {
 	lcli := vm.NewJSONRPCClient(uri)
 	ruleFactory, err := lcli.GetRuleFactory(ctx)
 	if err != nil {
@@ -113,11 +117,11 @@ func loadTxGenerators(
 		return nil, err
 	}
 
-	// Create tx generator
-	txGenerators := make([]hload.TxGenerator[*chain.Transaction], numFactories)
+	// Create issuers
+	issuers := make([]hload.Issuer[*chain.Transaction], numFactories)
 	for i := 0; i < numFactories; i++ {
-		txGenerators[i] = load.NewTxGenerator(authFactories[i], ruleFactory, balances[i], unitPrices)
+		issuers[i] = load.NewIssuer(authFactories[i], ruleFactory, balances[i], unitPrices, clients[i], tracker)
 	}
 
-	return txGenerators, nil
+	return issuers, nil
 }

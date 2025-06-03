@@ -9,6 +9,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ava-labs/avalanchego/ids"
+
+	"github.com/ava-labs/hypersdk/api/ws"
 	"github.com/ava-labs/hypersdk/chain"
 	"github.com/ava-labs/hypersdk/examples/morpheusvm/actions"
 	"github.com/ava-labs/hypersdk/fees"
@@ -18,50 +21,62 @@ import (
 var (
 	ErrTxGeneratorFundsExhausted = errors.New("tx generator funds exhausted")
 
-	_ load.TxGenerator[*chain.Transaction] = (*TxGenerator)(nil)
+	_ load.Issuer[*chain.Transaction] = (*Issuer)(nil)
 )
 
-type TxGenerator struct {
+type Issuer struct {
 	authFactory chain.AuthFactory
 	currBalance uint64
 	ruleFactory chain.RuleFactory
 	unitPrices  fees.Dimensions
+
+	client  *ws.WebSocketClient
+	tracker load.Tracker[ids.ID]
 }
 
-func NewTxGenerator(
+func NewIssuer(
 	authFactory chain.AuthFactory,
 	ruleFactory chain.RuleFactory,
 	currBalance uint64,
 	unitPrices fees.Dimensions,
-) *TxGenerator {
-	return &TxGenerator{
+	client *ws.WebSocketClient,
+	tracker load.Tracker[ids.ID],
+) *Issuer {
+	return &Issuer{
 		authFactory: authFactory,
 		ruleFactory: ruleFactory,
 		currBalance: currBalance,
 		unitPrices:  unitPrices,
+		client:      client,
+		tracker:     tracker,
 	}
 }
 
-func (t *TxGenerator) GenerateTx(context.Context) (*chain.Transaction, error) {
+func (i *Issuer) GenerateAndIssueTx(_ context.Context) (*chain.Transaction, error) {
 	tx, err := chain.GenerateTransaction(
-		t.ruleFactory,
-		t.unitPrices,
+		i.ruleFactory,
+		i.unitPrices,
 		time.Now().UnixMilli(),
 		[]chain.Action{
 			&actions.Transfer{
-				To:    t.authFactory.Address(),
+				To:    i.authFactory.Address(),
 				Value: 1,
-				Memo:  binary.BigEndian.AppendUint64(nil, t.currBalance),
+				Memo:  binary.BigEndian.AppendUint64(nil, i.currBalance),
 			},
 		},
-		t.authFactory,
+		i.authFactory,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if tx.MaxFee() > t.currBalance {
+	if tx.MaxFee() > i.currBalance {
 		return nil, ErrTxGeneratorFundsExhausted
 	}
-	t.currBalance -= tx.MaxFee()
+	i.currBalance -= tx.MaxFee()
+
+	if err := i.client.RegisterTx(tx); err != nil {
+		return nil, err
+	}
+	i.tracker.Issue(tx.GetID())
 	return tx, nil
 }

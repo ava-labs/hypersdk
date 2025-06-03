@@ -7,24 +7,24 @@ import (
 	"context"
 )
 
-type TxGenerator[T comparable] interface {
-	// GenerateTx returns a valid transaction.
-	GenerateTx(ctx context.Context) (T, error)
+type Issuer[T comparable] interface {
+	// GenerateAndIssueTx generates and sends a tx to the network, and informs the
+	// tracker that it sent said transaction. It returns the sent transaction.
+	GenerateAndIssueTx(ctx context.Context) (tx T, err error)
 }
 
-type Issuer[T comparable] interface {
+type Listener[T comparable] interface {
 	// Listen for the final status of transactions and notify the tracker
-	// Listen stops if the context is done, an error occurs, or if the issuer
-	// has sent all their transactions.
+	// Listen stops if the context is done, an error occurs, or if it received
+	// all the transactions issued and the issuer no longer issues any.
+	// Listen MUST return a nil error if the context is canceled.
 	Listen(ctx context.Context) error
 
-	// Stop notifies the issuer that no further transactions will be issued.
-	// If a transaction is issued after Stop has been called, the issuer should error.
-	Stop()
+	// RegisterIssued informs the listener that a transaction was issued.
+	RegisterIssued(tx T)
 
-	// Issue sends a tx to the network, and informs the tracker that its sent
-	// said transaction.
-	IssueTx(ctx context.Context, tx T) error
+	// IssuingDone informs the listener that no more transactions will be issued.
+	IssuingDone()
 }
 
 // Tracker keeps track of the status of transactions.
@@ -49,9 +49,9 @@ type Tracker[T comparable] interface {
 	GetObservedFailed() uint64
 }
 
-// Orchestrator executes the load test by coordinating the issuers to send
+// orchestrator executes the load test by coordinating the issuers to send
 // transactions, in a manner depending on the implementation.
-type Orchestrator interface {
+type orchestrator interface {
 	// Execute the load test
 	Execute(ctx context.Context) error
 }

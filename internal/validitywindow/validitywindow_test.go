@@ -16,6 +16,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newPopulatedValidityWindow(ctx context.Context, r *require.Assertions, blocks []executionBlock, head executionBlock, validityWindowDuration int64) *TimeValidityWindow[container] {
+	chainIndex := &testChainIndex{}
+	for _, blk := range blocks {
+		chainIndex.set(blk.GetID(), blk)
+	}
+
+	validityWindow, err := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, head, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
+
+	return validityWindow
+}
+
 func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -116,17 +130,9 @@ func TestValidityWindowVerifyExpiryReplayProtection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
-			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
-				return test.validityWindow
-			})
-			for i, blk := range test.blocks {
-				if i <= test.accepted {
-					validityWindow.Accept(blk)
-				}
-				chainIndex.set(blk.GetID(), blk)
-			}
+			validityWindow := newPopulatedValidityWindow(ctx, r, test.blocks, test.blocks[test.accepted], test.validityWindow)
 			r.ErrorIs(validityWindow.VerifyExpiryReplayProtection(context.Background(), test.verifyBlock), test.expectedError)
 		})
 	}
@@ -272,17 +278,9 @@ func TestValidityWindowIsRepeat(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
+			ctx := context.Background()
 
-			chainIndex := &testChainIndex{}
-			validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
-				return test.validityWindow
-			})
-			for i, blk := range test.blocks {
-				if i <= test.accepted {
-					validityWindow.Accept(blk)
-				}
-				chainIndex.set(blk.GetID(), blk)
-			}
+			validityWindow := newPopulatedValidityWindow(ctx, r, test.blocks, test.blocks[test.accepted], test.validityWindow)
 			parent := test.blocks[len(test.blocks)-1]
 			if test.overrideParentBlock != nil {
 				parent = test.overrideParentBlock()
@@ -357,19 +355,21 @@ func TestVerifyTimestamp(t *testing.T) {
 }
 
 // TestValidityWindowBoundaryLifespan tests that a container included at the validity window boundary transitions
-// seamlessly from failing veriifcation due to a duplicate within the validity window to failing because it expired.
+// seamlessly from failing verification due to a duplicate within the validity window to failing because it expired.
 func TestValidityWindowBoundaryLifespan(t *testing.T) {
 	r := require.New(t)
-
-	chainIndex := &testChainIndex{}
-	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
-		return validityWindowDuration
-	})
+	ctx := context.Background()
 
 	// Create accepted genesis block
+	chainIndex := &testChainIndex{}
 	genesisBlk := newExecutionBlock(0, 0, []int64{1})
 	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+
+	validityWindowDuration := int64(10)
+	validityWindow, err := NewTimeValidityWindow[container](ctx, &logging.NoLog{}, trace.Noop, chainIndex, genesisBlk, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
 	validityWindow.Accept(genesisBlk)
 
 	blk1 := newExecutionBlock(1, 0, []int64{validityWindowDuration})
@@ -397,16 +397,18 @@ func TestValidityWindowBoundaryLifespan(t *testing.T) {
 
 func TestAcceptHistorical(t *testing.T) {
 	r := require.New(t)
-
-	chainIndex := &testChainIndex{}
-	validityWindowDuration := int64(10)
-	validityWindow := NewTimeValidityWindow(&logging.NoLog{}, trace.Noop, chainIndex, func(int64) int64 {
-		return validityWindowDuration
-	})
+	ctx := context.Background()
 
 	// Create and accept the genesis block to set an initial lastAcceptedBlockHeight
+	chainIndex := &testChainIndex{}
 	genesisBlk := newExecutionBlock(0, 0, []int64{})
 	chainIndex.set(genesisBlk.GetID(), genesisBlk)
+
+	validityWindowDuration := int64(10)
+	validityWindow, err := NewTimeValidityWindow(ctx, &logging.NoLog{}, trace.Noop, chainIndex, genesisBlk, func(int64) int64 {
+		return validityWindowDuration
+	})
+	r.NoError(err)
 	validityWindow.Accept(genesisBlk)
 	r.Equal(uint64(0), validityWindow.lastAcceptedBlockHeight)
 
@@ -425,7 +427,8 @@ func TestAcceptHistorical(t *testing.T) {
 }
 
 type testChainIndex struct {
-	blocks map[ids.ID]ExecutionBlock[container]
+	beforeSaveFunc func(blocks map[ids.ID]ExecutionBlock[container]) error
+	blocks         map[ids.ID]ExecutionBlock[container]
 }
 
 func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (ExecutionBlock[container], error) {
@@ -433,6 +436,18 @@ func (t *testChainIndex) GetExecutionBlock(_ context.Context, blkID ids.ID) (Exe
 		return blk, nil
 	}
 	return nil, database.ErrNotFound
+}
+
+func (t *testChainIndex) SaveHistorical(blk ExecutionBlock[container]) error {
+	if t.blocks == nil {
+		t.blocks = make(map[ids.ID]ExecutionBlock[container])
+	}
+
+	if t.beforeSaveFunc != nil {
+		return t.beforeSaveFunc(t.blocks)
+	}
+	t.blocks[blk.GetID()] = blk
+	return nil
 }
 
 func (t *testChainIndex) set(blkID ids.ID, blk ExecutionBlock[container]) {
