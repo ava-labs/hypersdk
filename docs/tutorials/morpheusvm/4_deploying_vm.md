@@ -187,7 +187,7 @@ func init() {
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Prints out the verson",
+		Short: "Prints out the version",
 		RunE:  versionFunc,
 	}
 	return cmd

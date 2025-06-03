@@ -206,7 +206,7 @@ func (e *Executor) Run(keys state.Keys, f func() error) {
 		e.nodes[k] = t
 	}
 
-	// Adjust dependency traker and execute if necessary
+	// Adjust dependency tracker and execute if necessary
 	difference := e.maxDependencies - int64(dependencies.Len())
 	if t.dependencies.Add(-difference) > 0 {
 		if e.metrics != nil {
