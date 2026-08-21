@@ -5,6 +5,7 @@ package fees
 
 import (
 	"encoding/binary"
+	"math/bits"
 	"sync"
 
 	"github.com/ava-labs/avalanchego/utils/math"
@@ -200,6 +201,16 @@ func (f *Manager) UnitsConsumed() fees.Dimensions {
 	return d
 }
 
+// mulDiv returns floor(a*b/d).
+func mulDiv(a, b, d uint64) uint64 {
+	hi, lo := bits.Mul64(a, b)
+	if hi >= d {
+		return consts.MaxUint64
+	}
+	q, _ := bits.Div64(hi, lo, d)
+	return q
+}
+
 func computeNextPriceWindow(
 	previous window.Window,
 	previousConsumed uint64,
@@ -224,9 +235,7 @@ func computeNextPriceWindow(
 	if total > target {
 		// If the parent block used more units than its target, the baseFee should increase.
 		delta := total - target
-		x := previousPrice * delta
-		y := x / target
-		baseDelta := y / changeDenom
+		baseDelta := mulDiv(previousPrice, delta, target) / changeDenom
 		if baseDelta < 1 {
 			baseDelta = 1
 		}
@@ -239,9 +248,7 @@ func computeNextPriceWindow(
 	} else if total < target {
 		// Otherwise if the parent block used less units than its target, the baseFee should decrease.
 		delta := target - total
-		x := previousPrice * delta
-		y := x / target
-		baseDelta := y / changeDenom
+		baseDelta := mulDiv(previousPrice, delta, target) / changeDenom
 		if baseDelta < 1 {
 			baseDelta = 1
 		}
@@ -252,7 +259,13 @@ func computeNextPriceWindow(
 		// that has elapsed between the parent and this block.
 		if since > window.WindowSize {
 			// Note: roll/rollupWindow must be greater than 1 since we've checked that roll > rollupWindow
-			baseDelta *= since / window.WindowSize
+			scaled, over := math.Mul(baseDelta, since/window.WindowSize)
+			if over != nil {
+				// Saturate: an unbounded decrease is clamped to [minPrice] below.
+				baseDelta = consts.MaxUint64
+			} else {
+				baseDelta = scaled
+			}
 		}
 		n, under := math.Sub(nextPrice, baseDelta)
 		if under != nil {
