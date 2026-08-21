@@ -48,8 +48,9 @@ func ToAddress(b []byte) (Address, error) {
 
 // StringToAddress returns Address with bytes set to the hex decoding
 // of s.
-// StringToAddress uses copy, which copies the minimum of
-// either AddressLen or the length of the hex decoded string.
+//
+// s must decode to exactly [AddressLen] bytes (plus the trailing checksum);
+// any other length is rejected rather than being truncated or zero-padded.
 func StringToAddress(s string) (Address, error) {
 	var a Address
 	if err := a.UnmarshalText([]byte(s)); err != nil {
@@ -75,6 +76,11 @@ func (a *Address) UnmarshalText(input []byte) error {
 		return err
 	}
 
+	// Check that the decoded address is the expected length
+	if len(decoded) != AddressLen {
+		return fmt.Errorf("%w: decoded address is %d bytes, expected %d", ErrInvalidSize, len(decoded), AddressLen)
+	}
+
 	copy(a[:], decoded)
 	return nil
 }
@@ -84,7 +90,7 @@ func encodeWithChecksum(bytes []byte) string {
 	bytesLen := len(bytes)
 	checked := make([]byte, bytesLen+checksumLen)
 	copy(checked, bytes)
-	copy(checked[AddressLen:], hashing.Checksum(bytes, checksumLen))
+	copy(checked[bytesLen:], hashing.Checksum(bytes, checksumLen))
 	return "0x" + hex.EncodeToString(checked)
 }
 
