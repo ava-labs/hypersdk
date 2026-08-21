@@ -456,6 +456,7 @@ func TestProcessorExecute(t *testing.T) {
 							testRules.GetMinEmptyBlockGap(),
 							testRules.GetValidityWindow(),
 						),
+						MaxFee: math.MaxUint64,
 					},
 					[]chain.Action{},
 					&auth.ED25519{

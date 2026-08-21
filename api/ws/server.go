@@ -5,7 +5,9 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/ava-labs/avalanchego/ids"
 	"github.com/ava-labs/avalanchego/trace"
@@ -124,8 +126,8 @@ func NewWebSocketServer(
 	return w, w.s
 }
 
-// Note: no need to have a tx listener removal, this will happen when all
-// submitted transactions are cleared.
+// AddTxListener registers [c] to be notified about the result of [tx].
+// Note: cleanup relies on expiry eviction; never register a tx expiring past the validity window.
 func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connection) {
 	w.txL.Lock()
 	defer w.txL.Unlock()
@@ -139,6 +141,22 @@ func (w *WebSocketServer) AddTxListener(tx *chain.Transaction, c *pubsub.Connect
 	}
 	connections.Add(c)
 	w.expiringTxs.Add([]*chain.Transaction{tx})
+}
+
+// RemoveTxListener unregisters [c] from the listeners for [txID], dropping the
+// entry entirely once no connection is waiting on it.
+func (w *WebSocketServer) RemoveTxListener(txID ids.ID, c *pubsub.Connection) {
+	w.txL.Lock()
+	defer w.txL.Unlock()
+
+	connections, ok := w.txListeners[txID]
+	if !ok {
+		return
+	}
+	connections.Remove(c)
+	if connections.Len() == 0 {
+		delete(w.txListeners, txID)
+	}
 }
 
 func (w *WebSocketServer) expireTx(txID ids.ID) {
@@ -228,11 +246,28 @@ func (w *WebSocketServer) MessageCallback() pubsub.Callback {
 				return
 			}
 
+			txID := tx.GetID()
+
+			// Drop txs expiring past the validity window
+			now := time.Now().UnixMilli()
+			rules := w.vm.GetRuleFactory().GetRules(now)
+			if tx.Base.Timestamp > now+rules.GetValidityWindow() {
+				w.logger.Debug("dropping tx with expiry beyond the validity window",
+					zap.Stringer("txID", txID),
+					zap.Int64("timestamp", tx.Base.Timestamp),
+				)
+				return
+			}
+
+			// Registered before Submit so that a tx accepted into a block
+			// cannot be reported before the listener exists.
 			w.AddTxListener(tx, c)
 
-			// Submit will remove from [txListeners] if it is not added
-			txID := tx.GetID()
 			if err := w.vm.Submit(ctx, []*chain.Transaction{tx})[0]; err != nil {
+				// If the tx is already in the mempool, the listener must be retained
+				if !errors.Is(err, vm.ErrNotAdded) {
+					w.RemoveTxListener(txID, c)
+				}
 				w.logger.Error("failed to submit tx",
 					zap.Stringer("txID", txID),
 					zap.Error(err),

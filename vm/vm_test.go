@@ -217,7 +217,7 @@ func TestSubmitTx(t *testing.T) {
 					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 1_000),
-						MaxFee:    1_000,
+						MaxFee:    1_000_000,
 					},
 					[]chain.Action{
 						chaintest.NewDummyTestAction(),
@@ -236,7 +236,7 @@ func TestSubmitTx(t *testing.T) {
 					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: 1,
-						MaxFee:    1_000,
+						MaxFee:    1_000_000,
 					},
 					[]chain.Action{
 						chaintest.NewDummyTestAction(),
@@ -255,7 +255,7 @@ func TestSubmitTx(t *testing.T) {
 					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: int64(time.Millisecond),
-						MaxFee:    1_000,
+						MaxFee:    1_000_000,
 					},
 					[]chain.Action{
 						chaintest.NewDummyTestAction(),
@@ -274,7 +274,7 @@ func TestSubmitTx(t *testing.T) {
 					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), time.Hour.Milliseconds()),
-						MaxFee:    1_000,
+						MaxFee:    1_000_000,
 					},
 					[]chain.Action{
 						chaintest.NewDummyTestAction(),
@@ -293,7 +293,7 @@ func TestSubmitTx(t *testing.T) {
 					chain.Base{
 						ChainID:   network.ChainID(),
 						Timestamp: utils.UnixRMilli(time.Now().UnixMilli(), 30_000),
-						MaxFee:    1_000,
+						MaxFee:    1_000_000,
 					},
 					[]chain.Action{
 						chaintest.NewDummyTestAction(),

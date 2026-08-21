@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ava-labs/avalanchego/ids"
@@ -392,10 +393,31 @@ func TestPreExecute(t *testing.T) {
 			err: safemath.ErrOverflow,
 		},
 		{
+			name: "fee exceeds max fee",
+			tx: &chain.Transaction{
+				TransactionData: chain.TransactionData{
+					// MaxFee of 1 cannot cover the fee computed at a unit price of 1.
+					Base: chain.Base{MaxFee: 1},
+					Actions: []chain.Action{
+						chaintest.NewDummyTestAction(),
+					},
+				},
+				Auth: chaintest.NewDummyTestAuth(),
+			},
+			fm: func() *fees.Manager {
+				fm := fees.NewManager([]byte{})
+				for i := 0; i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(externalfees.Dimension(i), 1)
+				}
+				return fm
+			}(),
+			err: chain.ErrFeeExceedsMaxFee,
+		},
+		{
 			name: "insufficient balance",
 			tx: &chain.Transaction{
 				TransactionData: chain.TransactionData{
-					Base: chain.Base{},
+					Base: chain.Base{MaxFee: consts.MaxUint64},
 					Actions: []chain.Action{
 						chaintest.NewDummyTestAction(),
 					},
@@ -432,6 +454,57 @@ func TestPreExecute(t *testing.T) {
 				),
 				tt.err,
 			)
+		})
+	}
+}
+
+// The MaxFee check in PreExecute is only safe if the MaxFee that
+// GenerateTransaction derives from EstimateUnits always covers the fee derived
+// from the real Units at the same prices. EstimateUnits previously omitted the
+// per-action canoto framing, so the margin shrank by two bandwidth units per
+// action and went negative past ~37 actions - transactions the SDK itself built
+// would have been rejected by their own fee cap.
+func TestEstimateUnitsCoversActualUnits(t *testing.T) {
+	bh := balance.NewPrefixBalanceHandler([]byte{0})
+	authFactory := &chaintest.TestAuthFactory{TestAuth: chaintest.NewDummyTestAuth()}
+
+	priceSets := []externalfees.Dimensions{
+		{1, 1, 1, 1, 1},
+		{100, 100, 100, 100, 100},
+		{7, 13, 29, 31, 37},
+	}
+
+	// walk the full range MaxActionsPerTx can express, not just the default
+	for _, maxActions := range []uint8{1, 16, 37, 38, 64, 255} {
+		t.Run(fmt.Sprintf("maxActions=%d", maxActions), func(t *testing.T) {
+			r := require.New(t)
+
+			rules := genesis.NewDefaultRules()
+			rules.MaxActionsPerTx = maxActions
+			ruleFactory := &genesis.ImmutableRuleFactory{Rules: rules}
+
+			actions := make([]chain.Action, maxActions)
+			for i := range actions {
+				actions[i] = chaintest.NewDummyTestAction()
+			}
+
+			for _, prices := range priceSets {
+				tx, err := chain.GenerateTransaction(ruleFactory, prices, 0, actions, authFactory)
+				r.NoError(err)
+
+				fm := fees.NewManager(nil)
+				for i := externalfees.Dimension(0); i < externalfees.FeeDimensions; i++ {
+					fm.SetUnitPrice(i, prices[i])
+				}
+				units, err := tx.Units(bh, rules)
+				r.NoError(err)
+				actualFee, err := fm.Fee(units)
+				r.NoError(err)
+
+				r.GreaterOrEqualf(tx.Base.MaxFee, actualFee,
+					"GenerateTransaction produced MaxFee %d below the actual fee %d (%d actions, prices %v)",
+					tx.Base.MaxFee, actualFee, len(actions), prices)
+			}
 		})
 	}
 }

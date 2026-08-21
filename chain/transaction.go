@@ -279,6 +279,11 @@ func (t *Transaction) PreExecute(
 	if err != nil {
 		return err
 	}
+
+	// Check that the calculated fee does not exceed the maximum allowed fee
+	if fee > t.Base.MaxFee {
+		return fmt.Errorf("%w: fee (%d) > MaxFee (%d)", ErrFeeExceedsMaxFee, fee, t.Base.MaxFee)
+	}
 	return bh.CanDeduct(ctx, t.Auth.Sponsor(), im, fee)
 }
 
@@ -431,10 +436,16 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 	)
 
 	// Calculate over action/auth
+	//
+	// Bandwidth must account for the canoto framing that [SerializeTx] adds
+	// around each field - a tag plus a length prefix per action and for the
+	// auth - and not just the payload lengths. Under-counting here would make
+	// the MaxFee derived from this estimate smaller than the fee derived from
+	// [Transaction.Units], so a transaction built by [GenerateTransaction]
+	// would be rejected by its own fee cap.
 	bandwidth += consts.Uint8Len
 	for i, action := range actions {
 		actionBytes := action.Bytes()
-		actionSize := len(actionBytes)
 
 		actor := authFactory.Address()
 		stateKeys := action.StateKeys(actor, CreateActionID(ids.Empty, uint8(i)))
@@ -442,12 +453,12 @@ func EstimateUnits(r Rules, actions []Action, authFactory AuthFactory) (fees.Dim
 		if !ok {
 			return fees.Dimensions{}, ErrInvalidKeyValue
 		}
-		bandwidth += uint64(actionSize)
+		bandwidth += uint64(len(canoto__SerializeTx__Actions__tag)) + canoto.SizeBytes(actionBytes)
 		stateKeysMaxChunks = append(stateKeysMaxChunks, actionStateKeysMaxChunks...)
 		computeOp.Add(action.ComputeUnits(r))
 	}
 	authBandwidth, authCompute := authFactory.MaxUnits()
-	bandwidth += authBandwidth
+	bandwidth += uint64(len(canoto__SerializeTx__Auth__tag)) + canoto.SizeUint(authBandwidth) + authBandwidth
 	sponsorStateKeyMaxChunks := r.GetSponsorStateKeysMaxChunks()
 	stateKeysMaxChunks = append(stateKeysMaxChunks, sponsorStateKeyMaxChunks...)
 	computeOp.Add(authCompute)

@@ -127,3 +127,68 @@ func TestStringToAddress(t *testing.T) {
 		})
 	}
 }
+
+// A valid checksum only proves the payload is intact, not that it is the right
+// size. Without a length check, copy would truncate a longer payload or
+// zero-pad a shorter one, so many distinct strings would decode to the same
+// Address.
+func TestStringToAddressRejectsWrongLength(t *testing.T) {
+	valid := CreateAddress(1, ids.GenerateTestID())
+
+	tests := []struct {
+		name    string
+		payload []byte
+	}{
+		{
+			name:    "empty payload",
+			payload: []byte{},
+		},
+		{
+			name:    "one byte short",
+			payload: valid[:AddressLen-1],
+		},
+		{
+			name:    "four byte payload",
+			payload: []byte{0x01, 0x02, 0x03, 0x04},
+		},
+		{
+			name:    "one byte long",
+			payload: append(append([]byte{}, valid[:]...), 0xff),
+		},
+		{
+			name:    "valid address with a long suffix",
+			payload: append(append([]byte{}, valid[:]...), []byte("extra-suffix-bytes")...),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require := require.New(t)
+
+			got, err := StringToAddress(encodeWithChecksum(tt.payload))
+			require.ErrorIs(err, ErrInvalidSize)
+			require.Equal(EmptyAddress, got)
+		})
+	}
+
+	// the correct length still round-trips
+	got, err := StringToAddress(valid.String())
+	require.NoError(t, err)
+	require.Equal(t, valid, got)
+}
+
+// encodeWithChecksum must checksum over its argument, not over a fixed length.
+func TestEncodeWithChecksumHonorsInputLength(t *testing.T) {
+	require := require.New(t)
+
+	for _, size := range []int{0, 1, 16, AddressLen, AddressLen + 7} {
+		payload := make([]byte, size)
+		for i := range payload {
+			payload[i] = byte(i + 1)
+		}
+
+		decoded, err := fromChecksum(encodeWithChecksum(payload))
+		require.NoError(err, "size %d", size)
+		require.Equal(payload, decoded, "size %d", size)
+	}
+}

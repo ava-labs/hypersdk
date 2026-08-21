@@ -43,6 +43,7 @@ func TestPreExecutor(t *testing.T) {
 					time.Now().UnixMilli(),
 					testRules.GetValidityWindow(),
 				),
+				MaxFee: math.MaxUint64,
 			},
 		},
 		Auth: chaintest.NewDummyTestAuth(),

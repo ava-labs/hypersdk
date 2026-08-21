@@ -51,6 +51,7 @@ var (
 	ErrInvalidActor         = errors.New("invalid actor")
 	ErrInvalidSponsor       = errors.New("invalid sponsor")
 	ErrTooManyActions       = errors.New("too many actions")
+	ErrFeeExceedsMaxFee     = errors.New("fee exceeds max fee")
 
 	// Execution Correctness
 	ErrBlockTooBig     = errors.New("block too big")

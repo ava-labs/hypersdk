@@ -262,6 +262,18 @@ func (j *JSONRPCServer) SimulateActions(
 	ctx, span := j.vm.Tracer().Start(req.Context(), "JSONRPCServer.SimulateActions")
 	defer span.End()
 
+	currentTime := time.Now().UnixMilli()
+	ruleFactory := j.vm.GetRuleFactory()
+	rules := ruleFactory.GetRules(currentTime)
+
+	// Limit the number of actions to simulate to avoid DoS attacks
+	if len(args.Actions) == 0 {
+		return errSimulateZeroActions
+	}
+	if maxActionsPerTx := int(rules.GetMaxActionsPerTx()); len(args.Actions) > maxActionsPerTx {
+		return fmt.Errorf("exceeded max actions per simulation: %d", maxActionsPerTx)
+	}
+
 	txParser := j.vm.GetParser()
 	actions := make([]chain.Action, 0, len(args.Actions))
 	for _, actionBytes := range args.Actions {
@@ -270,9 +282,6 @@ func (j *JSONRPCServer) SimulateActions(
 			return err
 		}
 		actions = append(actions, action)
-	}
-	if len(actions) == 0 {
-		return errSimulateZeroActions
 	}
 	currentState, err := j.vm.ImmutableState(ctx)
 	if err != nil {
@@ -287,9 +296,6 @@ func (j *JSONRPCServer) SimulateActions(
 		0,
 	)
 
-	currentTime := time.Now().UnixMilli()
-	ruleFactory := j.vm.GetRuleFactory()
-	rules := ruleFactory.GetRules(currentTime)
 	for _, action := range actions {
 		actionOutput, err := action.Execute(
 			ctx,
